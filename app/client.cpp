@@ -120,8 +120,8 @@ Client::Client(QWidget *parent)
     mainLayout->addWidget(hostCombo, 0, 1);
     mainLayout->addWidget(portLabel, 1, 0);
     mainLayout->addWidget(portLineEdit, 1, 1);
-    mainLayout->addWidget(tempLabel, 2, 0, 1, 2);
-    mainLayout->addWidget(buttonBox, 2, 0, 1, 2);
+    mainLayout->addWidget(tempLabel, 2, 0, 1, 1);
+    mainLayout->addWidget(buttonBox, 2, 1, 1, 3);
     setLayout(mainLayout);
 
     setWindowTitle(tr("Switch client"));
@@ -244,7 +244,7 @@ void Client::readResp()
     case CMD_READ_TEMP: {
         qint32 temp;
         in >> temp;
-        tempLabel->setText("Temp " + QString::number(temp / 10.0));
+        tempLabel->setText("Temp " + QString::number(temp / 1000.0));
         break;
     }
     default:
