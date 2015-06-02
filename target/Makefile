@@ -1,7 +1,9 @@
 CC=mips-openwrt-linux-gcc
 #CC=gcc
 
-CFLAGS= -g -O2 -Wall -Wstrict-prototypes -Wno-unused-function -Wno-unused-variable
+CFLAGS = -g -O2 -Wall -Wstrict-prototypes -Wno-unused-function -Wno-unused-variable
+
+CFLAGS += -I ../app
 
 BIN = server client test
 

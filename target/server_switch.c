@@ -9,7 +9,7 @@
 #include <errno.h>
 
 #include "util.h"
-#include "server_switch.h"
+#include <switch.h>
 #include "sensor.h"
 
 int main(int argc, char *argv[])
@@ -53,31 +53,31 @@ int main(int argc, char *argv[])
 				break;
 			}
 
-			DEBUG("received cmd %d len %d", cmd.id, cmd.len);
+			DEBUG("received cmd %d len %d", cmd.header.id, cmd.header.len);
 
-			resp.id = cmd.id;
-			resp.status = STATUS_OK;
-			resp.len = 0;
+			resp.header.id = cmd.header.id;
+			resp.header.status = STATUS_OK;
+			resp.header.len = 0;
 
-			switch (cmd.id) {
+			switch (cmd.header.id) {
 			case CMD_SET_SW:
 				DEBUG("switch %d", cmd.u.sw_pos);
 				break;
 			case CMD_READ_TEMP: {
 				int temp;
 				if (ds1820_get_temp(dev, &temp)) {
-					resp.status = STATUS_CMD_FAILED;
+					resp.header.status = STATUS_CMD_FAILED;
 					ERROR("Sensor reading failed");
 					break;
 				}
 
-				resp.len = sizeof(int);
+				resp.header.len = sizeof(int);
 				resp.u.temp = temp;
 				DEBUG("temp %d.%d", temp/1000, temp % 1000);
 				break;
 			}
 			default:
-				resp.status = STATUS_CMD_INVALID;
+				resp.header.status = STATUS_CMD_INVALID;
 			}
 
 			ret = write(s, &resp, sizeof(resp));
