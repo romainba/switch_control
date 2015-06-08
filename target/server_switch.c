@@ -10,18 +10,35 @@
 #include <errno.h>
 #include <sys/types.h>
 #include <sys/wait.h>
+#include <sys/stat.h>
 
 #include "util.h"
 #include <switch.h>
 #include "sensor.h"
 
-#define GPIO_SW 26 //7
+#define GPIO_SW 7
+
+int file_exists(char *file)
+{
+	struct stat s;
+	int err = stat(file, &s);
+	if(err < 0) {
+		if(errno == ENOENT) {
+			return 0;
+		} else {
+			ERROR("stat %s", strerror(errno));
+			return -1;
+		}
+	}
+	return 1; /* S_ISDIR(s.st_mode) */
+}
 
 static void gpio_conf(int gpio)
 {
 	char str[50];
 	sprintf(str, "echo %d > /sys/class/gpio/export", gpio);
-	system(str);
+	if (!file_exists(str))
+		system(str);
 
 	sprintf(str, "echo out > /sys/class/gpio/gpio%d/direction", gpio);
 	system(str);

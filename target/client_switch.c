@@ -9,7 +9,7 @@
 #include <arpa/inet.h>
 
 #include "util.h"
-#include "server_switch.h"
+#include <switch.h>
 
 
 int main(int argc, char *argv[])
