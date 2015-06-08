@@ -9,14 +9,14 @@
 #include <arpa/inet.h>
 
 #include "util.h"
-#include "server_switch.h"
+#include <switch.h>
 
 
 int main(int argc, char *argv[])
 {
 	int sock, ret;
 	struct sockaddr_in sin;
-	struct resp resp = { .status = STATUS_OK };
+	struct resp resp;
 	struct cmd cmd;
 
 	if (argc != 2) {
@@ -42,7 +42,7 @@ int main(int argc, char *argv[])
 
 	DEBUG("client connected");
 
-	cmd.id = CMD_SET_SW;
+	cmd.header.id = CMD_SET_SW;
 	cmd.u.sw_pos = 1;
 
 	ret = write(sock, &cmd, sizeof(struct cmd));
@@ -57,10 +57,10 @@ int main(int argc, char *argv[])
 		return 0;
 	}
 
-	DEBUG("resp cmd %d status %d", resp.id, resp.status);
+	DEBUG("resp cmd %d status %d", resp.header.id, resp.header.status);
 
 
-	cmd.id = CMD_READ_TEMP;
+	cmd.header.id = CMD_READ_TEMP;
 
 	ret = write(sock, &cmd, sizeof(struct cmd));
 	if (ret < 0) {
@@ -74,7 +74,7 @@ int main(int argc, char *argv[])
 		return 0;
 	}
 
-	DEBUG("resp cmd %d status %d", resp.id, resp.status);
+	DEBUG("resp cmd %d status %d", resp.header.id, resp.header.status);
 
 	close(sock);
 	return 0;
