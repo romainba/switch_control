@@ -5,11 +5,14 @@ CFLAGS = -g -O2 -Wall -Wstrict-prototypes -Wno-unused-function -Wno-unused-varia
 
 CFLAGS += -I ../app
 
-BIN = server client test
+BIN = server client test toggle_mode
 
 all: $(BIN)
 
 server: util.o sensor.o server_switch.o
+	$(CC) -o $@ $^
+
+toggle_mode: util.o toggle_mode.o
 	$(CC) -o $@ $^
 
 client: client_switch.o util.o
