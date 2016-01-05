@@ -18,7 +18,7 @@
 #include "sensor.h"
 
 #define PERIOD_CHECK 30 /* second */
-#define DEFAULT_TEMP 18000 /* 18 degres */
+#define DEFAULT_TEMP 20000 /* 18 degres */
 
 #define GPIO_SW 7
 
@@ -172,6 +172,7 @@ static int handle_sess(int s, struct config *config)
 			break;
 		}
 		case CMD_TOGGLE_MODE:
+			DEBUG("toggle mode");
 			req = !sw_pos;
 			break;
 		case CMD_SET_TEMP:
@@ -259,7 +260,6 @@ int main(int argc, char *argv[])
 		if (pid < 0)
 			ERROR("fork: %s",  strerror(errno));
 		else if (pid == 0) {
-			DEBUG("handle sess");
 			handle_sess(s, config);
 			exit(0);
 		}

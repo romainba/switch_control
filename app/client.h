@@ -75,8 +75,10 @@ private slots:
 private:
     QLabel *hostLabel;
     QLabel *portLabel;
-    QComboBox *hostCombo;
+    QLabel *tempThresLabel;
+    QLineEdit *hostLineEdit;
     QLineEdit *portLineEdit;
+    QLineEdit *tempThresLineEdit;
     QLabel *tempLabel;
     QPushButton *getTempButton;
     QPushButton *switchButton;
@@ -85,6 +87,7 @@ private:
 
     QTcpSocket *tcpSocket;
     qint16 currentTemp;
+    qint16 tempThres;
     quint16 blockSize;
 
     QNetworkSession *networkSession;

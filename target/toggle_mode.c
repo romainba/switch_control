@@ -1,5 +1,5 @@
 /*
- * client_switch.c
+ * toggle_mode
  */
 #include <stdio.h>
 #include <unistd.h>
@@ -11,7 +11,6 @@
 #include "util.h"
 #include <switch.h>
 
-
 int main(int argc, char *argv[])
 {
 	int sock, ret;
@@ -19,20 +18,11 @@ int main(int argc, char *argv[])
 	struct resp resp;
 	struct cmd cmd;
 
-	if (argc != 2) {
-		printf("usage: %s <ip address>\n", argv[0]);
-		return 0;
-	}
-
 	sock = socket(AF_INET, SOCK_STREAM, 0);
 
 	sin.sin_family = AF_INET;
 	sin.sin_port = htons(PORT);
-
-	if(inet_pton(AF_INET, argv[1], &sin.sin_addr) <= 0) {
-		ERROR("inet_pton error %s", strerror(errno));
-		return 0;
-	}
+	sin.sin_addr.s_addr = inet_addr("127.0.0.1");
 
 	ret = connect(sock, (struct sockaddr *) &sin, sizeof(sin));
 	if (ret < 0) {
@@ -40,10 +30,8 @@ int main(int argc, char *argv[])
 		return 0;
 	}
 
-	DEBUG("client connected");
-
-	cmd.header.id = CMD_SET_SW_POS;
-	cmd.u.sw_pos = 1;
+	cmd.header.id = CMD_TOGGLE_MODE;
+	cmd.header.len = 0;
 
 	ret = write(sock, &cmd, sizeof(struct cmd));
 	if (ret < 0) {
@@ -57,24 +45,7 @@ int main(int argc, char *argv[])
 		return 0;
 	}
 
-	DEBUG("resp cmd %d status %d", resp.header.id, resp.header.status);
-
-
-	cmd.header.id = CMD_READ_TEMP;
-
-	ret = write(sock, &cmd, sizeof(struct cmd));
-	if (ret < 0) {
-		ERROR("write error %s", strerror(errno));
-		return 0;
-	}
-
-	ret = read(sock, &resp, sizeof(struct resp));
-	if (ret < 0) {
-		ERROR("read error %s", strerror(errno));
-		return 0;
-	}
-
-	DEBUG("resp cmd %d status %d", resp.header.id, resp.header.status);
+	//DEBUG("resp cmd %d status %d", resp.header.id, resp.header.status);
 
 	close(sock);
 	return 0;

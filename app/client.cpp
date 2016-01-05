@@ -45,14 +45,19 @@
 #include "client.h"
 #include "switch.h"
 
+#define IPADDR "192.168.1.125"
+
 Client::Client(QWidget *parent)
 :   QDialog(parent), networkSession(0)
 {
-    hostLabel = new QLabel(tr("&Server name:"));
-    portLabel = new QLabel(tr("S&erver port:"));
+    hostLabel = new QLabel(tr("Server name:"));
+    portLabel = new QLabel(tr("Server port:"));
+    tempThresLabel = new QLabel(tr("Temp threshold:"));
 
-    hostCombo = new QComboBox;
-    hostCombo->setEditable(true);
+    hostLineEdit = new QLineEdit;
+    hostLineEdit->setText(IPADDR);
+
+#if 0
     // find out name of this machine
     QString name = QHostInfo::localHostName();
     if (!name.isEmpty()) {
@@ -75,13 +80,19 @@ Client::Client(QWidget *parent)
         if (ipAddressesList.at(i).isLoopback())
             hostCombo->addItem(ipAddressesList.at(i).toString());
     }
+#endif
 
     portLineEdit = new QLineEdit;
     portLineEdit->setValidator(new QIntValidator(1, 65535, this));
     portLineEdit->setText(QString::number(PORT));
 
-    hostLabel->setBuddy(hostCombo);
+    tempThresLineEdit = new QLineEdit;
+    tempThresLineEdit->setValidator(new QIntValidator(5, 25, this));
+    tempThresLineEdit->setText(QString::number(TEMPTHRES));
+
+    hostLabel->setBuddy(hostLineEdit);
     portLabel->setBuddy(portLineEdit);
+    tempThresLabel->setBuddy(tempThresLineEdit);
 
     tempLabel = new QLabel(tr("None"));
 
@@ -102,9 +113,11 @@ Client::Client(QWidget *parent)
 
     tcpSocket = new QTcpSocket(this);
 
-    connect(hostCombo, SIGNAL(editTextChanged(QString)),
+    connect(hostLineEdit, SIGNAL(textChanged(QString)),
             this, SLOT(enableButtons()));
     connect(portLineEdit, SIGNAL(textChanged(QString)),
+            this, SLOT(enableButtons()));
+    connect(tempThresLineEdit, SIGNAL(textChanged(QString)),
             this, SLOT(enableButtons()));
     connect(getTempButton, SIGNAL(clicked()),
             this, SLOT(requestTemp()));
@@ -117,14 +130,16 @@ Client::Client(QWidget *parent)
 
     QGridLayout *mainLayout = new QGridLayout;
     mainLayout->addWidget(hostLabel, 0, 0);
-    mainLayout->addWidget(hostCombo, 0, 1);
+    mainLayout->addWidget(hostLineEdit, 0, 1);
     mainLayout->addWidget(portLabel, 1, 0);
     mainLayout->addWidget(portLineEdit, 1, 1);
-    mainLayout->addWidget(tempLabel, 2, 0, 1, 1);
-    mainLayout->addWidget(buttonBox, 2, 1, 1, 3);
+    mainLayout->addWidget(tempThresLabel, 2, 0);
+    mainLayout->addWidget(tempThresLineEdit, 2, 1);
+    mainLayout->addWidget(tempLabel, 3, 0, 1, 1);
+    mainLayout->addWidget(buttonBox, 3, 1, 1, 3);
     setLayout(mainLayout);
 
-    setWindowTitle(tr("Switch client"));
+    setWindowTitle(tr("Switch control"));
     portLineEdit->setFocus();
 
     QNetworkConfigurationManager manager;
@@ -152,6 +167,8 @@ Client::Client(QWidget *parent)
 
         networkSession->open();
     }
+
+    enableButtons();
 }
 
 QDataStream &operator<<(QDataStream &out, const struct cmd_header &p)
@@ -178,7 +195,7 @@ void Client::sendHeader(quint16 id, quint16 len)
     blockSize = 0;
     tcpSocket->abort();
 
-    tcpSocket->connectToHost(hostCombo->currentText(),
+    tcpSocket->connectToHost(hostLineEdit->text(),
                              portLineEdit->text().toInt());
 
     qDebug() << "connected to server";
@@ -201,7 +218,7 @@ void Client::requestTemp()
 
 void Client::switchToggled()
 {
-    sendHeader(CMD_SET_SW, sizeof(int));
+    sendHeader(CMD_SET_SW_POS, sizeof(int));
 
     QDataStream out(tcpSocket);
     out.setByteOrder(QDataStream::BigEndian);
@@ -286,8 +303,9 @@ void Client::displayError(QAbstractSocket::SocketError socketError)
 void Client::enableButtons()
 {
     int flag = ((!networkSession || networkSession->isOpen()) &&
-            !hostCombo->currentText().isEmpty() &&
-            !portLineEdit->text().isEmpty());
+            !hostLineEdit->text().isEmpty() &&
+            !portLineEdit->text().isEmpty() &&
+            !tempThresLineEdit->text().isEmpty());
 
     getTempButton->setEnabled(flag);
     switchButton->setEnabled(flag);
