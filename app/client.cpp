@@ -169,7 +169,10 @@ Client::Client(QWidget *parent)
     }
 
     enableButtons();
+
+    statusTimer = startTimer(3000);
 }
+
 
 QDataStream &operator<<(QDataStream &out, const struct cmd_header &p)
 {
@@ -211,9 +214,9 @@ void Client::sendHeader(quint16 id, quint16 len)
     qDebug() << "send header";
 }
 
-void Client::requestTemp()
+void Client::requestStatus()
 {
-    sendHeader(CMD_READ_TEMP, 0);
+    sendHeader(CMD_GET_STATUS, 0);
 }
 
 void Client::switchToggled()
@@ -228,9 +231,11 @@ void Client::switchToggled()
     switchButton->setText(switchButton->isChecked() ? "Switch OFF" : "Switch ON");
 }
 
-static int resp_size[CMD_NUM] = {
-    0, /* CMD_SET_SW */
-    sizeof(int) /* CMD_READ_TEMP */
+static int respSize[CMD_NUM] = {
+    [CMD_SET_SW_POS] = 0,
+    [CMD_TOGGLE_MODE] = 0,
+    [CMD_SET_TEMP] = 0,
+    [CMD_GET_STATUS] = sizeof(struct status),
 };
 
 void Client::readResp()
@@ -248,7 +253,7 @@ void Client::readResp()
                 "status" << resp.header.status <<
                 "len" << resp.header.len;
 
-    if (resp.header.len != resp_size[resp.header.id]) {
+    if (resp.header.len != respSize[resp.header.id]) {
         qDebug() << "Cmd" << resp.header.id << "with invalid len";
         return;
     }
@@ -258,10 +263,11 @@ void Client::readResp()
     }
 
     switch (resp.header.id) {
-    case CMD_READ_TEMP: {
-        qint32 temp;
-        in >> temp;
-        tempLabel->setText("Temp " + QString::number(temp / 1000.0));
+    case CMD_GET_STATUS: {
+        in >> status.sw_pos;
+        in >> status.temp;
+
+        tempLabel->setText("Temp " + QString::number(status.temp / 1000.0));
         break;
     }
     default:
@@ -332,3 +338,12 @@ void Client::sessionOpened()
     enableButtons();
 }
 
+void Client::timerEvent(QTimerEvent *e)
+{
+    if (e->timerId() == statusTimer) {
+        sendHeader(CMD_GET_STATUS, sizeof(int));
+	    
+        qDebug() << "request status";
+        e->accept();
+    }
+}

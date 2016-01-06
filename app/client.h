@@ -43,6 +43,7 @@
 
 #include <QDialog>
 #include <QTcpSocket>
+#include "switch.h"
 
 QT_BEGIN_NAMESPACE
 class QComboBox;
@@ -67,10 +68,11 @@ private slots:
     void displayError(QAbstractSocket::SocketError socketError);
     void enableButtons();
     void sessionOpened();
-    void requestTemp();
+    void requestStatus();
     void switchToggled();
 
     void sendHeader(quint16 id, quint16 len);
+    void timerEvent(QTimerEvent *e);
 
 private:
     QLabel *hostLabel;
@@ -89,6 +91,9 @@ private:
     qint16 currentTemp;
     qint16 tempThres;
     quint16 blockSize;
+
+    int statusTimer;
+    struct status status;
 
     QNetworkSession *networkSession;
 };
