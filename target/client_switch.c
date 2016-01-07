@@ -60,7 +60,7 @@ int main(int argc, char *argv[])
 	DEBUG("resp cmd %d status %d", resp.header.id, resp.header.status);
 
 
-	cmd.header.id = CMD_READ_TEMP;
+	cmd.header.id = CMD_GET_STATUS;
 
 	ret = write(sock, &cmd, sizeof(struct cmd));
 	if (ret < 0) {

@@ -18,7 +18,7 @@
 #include "sensor.h"
 
 #define PERIOD_CHECK 30 /* second */
-#define DEFAULT_TEMP 20000 /* 18 degres */
+#define DEFAULT_TEMP 30000 /* degres */
 
 #define GPIO_SW 7
 
@@ -158,7 +158,7 @@ static int handle_sess(int s, struct config *config)
 		case CMD_SET_SW_POS:
 			req = cmd.u.sw_pos; /* 0 off, 1 on */
 			break;
-		case CMD_READ_TEMP: {
+		case CMD_GET_STATUS: {
 			int temp;
 			if (ds1820_get_temp(config->dev, &temp)) {
 				resp.header.status = STATUS_CMD_FAILED;
@@ -166,8 +166,10 @@ static int handle_sess(int s, struct config *config)
 				break;
 			}
 
-			resp.header.len = sizeof(int);
-			resp.u.temp = temp;
+			resp.header.len = sizeof(struct status);
+			resp.u.status.temp = temp;
+			resp.u.status.tempThres = config->temp;
+			resp.u.status.sw_pos = sw_pos;
 			DEBUG("temp %d.%d", temp/1000, temp % 1000);
 			break;
 		}
@@ -178,10 +180,6 @@ static int handle_sess(int s, struct config *config)
 		case CMD_SET_TEMP:
 			DEBUG("set_temp %d", cmd.u.temp);
 			config->temp = cmd.u.temp;
-			break;
-		case CMD_GET_SW_POS:
-			resp.header.len = sizeof(int);
-			resp.u.sw_pos = sw_pos;
 			break;
 		default:
 			resp.header.status = STATUS_CMD_INVALID;

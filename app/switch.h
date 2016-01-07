@@ -39,6 +39,7 @@ struct resp_header {
 
 struct status {
     int temp;
+    int tempThres;
     int sw_pos;
 };
 

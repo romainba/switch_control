@@ -47,6 +47,8 @@
 
 #define IPADDR "192.168.1.125"
 
+#define STATUSTIMEOUT 10
+
 Client::Client(QWidget *parent)
 :   QDialog(parent), networkSession(0)
 {
@@ -96,20 +98,12 @@ Client::Client(QWidget *parent)
 
     tempLabel = new QLabel(tr("None"));
 
-    getTempButton = new QPushButton(tr("Get temp"));
-    getTempButton->setDefault(true);
-    getTempButton->setEnabled(false);
-
     switchButton = new QPushButton("Switch ON", this);
     switchButton->setCheckable(true);
     switchButton->setEnabled(false);
 
-    quitButton = new QPushButton(tr("Quit"));
-
     buttonBox = new QDialogButtonBox;
-    buttonBox->addButton(getTempButton, QDialogButtonBox::ActionRole);
     buttonBox->addButton(switchButton, QDialogButtonBox::ActionRole);
-    buttonBox->addButton(quitButton, QDialogButtonBox::RejectRole);
 
     tcpSocket = new QTcpSocket(this);
 
@@ -119,9 +113,6 @@ Client::Client(QWidget *parent)
             this, SLOT(enableButtons()));
     connect(tempThresLineEdit, SIGNAL(textChanged(QString)),
             this, SLOT(enableButtons()));
-    connect(getTempButton, SIGNAL(clicked()),
-            this, SLOT(requestTemp()));
-    connect(quitButton, SIGNAL(clicked()), this, SLOT(close()));
     connect(switchButton, SIGNAL(clicked()), this, SLOT(switchToggled()));
 
     connect(tcpSocket, SIGNAL(readyRead()), this, SLOT(readResp()));
@@ -160,7 +151,6 @@ Client::Client(QWidget *parent)
         networkSession = new QNetworkSession(config, this);
         connect(networkSession, SIGNAL(opened()), this, SLOT(sessionOpened()));
 
-        getTempButton->setEnabled(false);
         switchButton->setEnabled(false);
 
         qDebug() << "Opening network session";
@@ -169,8 +159,9 @@ Client::Client(QWidget *parent)
     }
 
     enableButtons();
+    requestStatus();
 
-    statusTimer = startTimer(3000);
+    statusTimer = startTimer(STATUSTIMEOUT * 1000);
 }
 
 
@@ -221,14 +212,15 @@ void Client::requestStatus()
 
 void Client::switchToggled()
 {
+    status.sw_pos = !status.sw_pos;
+
     sendHeader(CMD_SET_SW_POS, sizeof(int));
 
     QDataStream out(tcpSocket);
     out.setByteOrder(QDataStream::BigEndian);
+    out << (quint32)status.sw_pos;
 
-    out << (quint32)switchButton->isChecked();
-
-    switchButton->setText(switchButton->isChecked() ? "Switch OFF" : "Switch ON");
+    switchButton->setText(status.sw_pos ? "Switch OFF" : "Switch ON");
 }
 
 static int respSize[CMD_NUM] = {
@@ -254,7 +246,7 @@ void Client::readResp()
                 "len" << resp.header.len;
 
     if (resp.header.len != respSize[resp.header.id]) {
-        qDebug() << "Cmd" << resp.header.id << "with invalid len";
+        qDebug() << "Cmd" << resp.header.id << "with invalid len " << resp.header.len;
         return;
     }
     if (resp.header.len) {
@@ -264,17 +256,20 @@ void Client::readResp()
 
     switch (resp.header.id) {
     case CMD_GET_STATUS: {
-        in >> status.sw_pos;
         in >> status.temp;
+        in >> status.tempThres;
+        in >> status.sw_pos;
 
-        tempLabel->setText("Temp " + QString::number(status.temp / 1000.0));
+        QString str = status.sw_pos ? "ON" : "OFF";
+        tempLabel->setText( str + " " + QString::number(status.temp / 1000.0) + "°C");
+        tempThresLineEdit->setText(QString::number(status.tempThres/1000.0));
+        switchButton->setText(status.sw_pos ? "Switch OFF" : "Switch ON");
         break;
     }
     default:
         qDebug() << "invalid resp id" << resp.header.id;
     }
 
-    getTempButton->setEnabled(true);
     switchButton->setEnabled(true);
 }
 
@@ -301,7 +296,6 @@ void Client::displayError(QAbstractSocket::SocketError socketError)
                                  .arg(tcpSocket->errorString()));
     }
 
-    getTempButton->setEnabled(true);
     switchButton->setEnabled(true);
 }
 
@@ -313,8 +307,7 @@ void Client::enableButtons()
             !portLineEdit->text().isEmpty() &&
             !tempThresLineEdit->text().isEmpty());
 
-    getTempButton->setEnabled(flag);
-    switchButton->setEnabled(flag);
+     switchButton->setEnabled(flag);
 }
 
 
@@ -341,9 +334,7 @@ void Client::sessionOpened()
 void Client::timerEvent(QTimerEvent *e)
 {
     if (e->timerId() == statusTimer) {
-        sendHeader(CMD_GET_STATUS, sizeof(int));
-	    
-        qDebug() << "request status";
+        requestStatus();
         e->accept();
     }
 }

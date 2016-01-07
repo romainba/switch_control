@@ -82,9 +82,7 @@ private:
     QLineEdit *portLineEdit;
     QLineEdit *tempThresLineEdit;
     QLabel *tempLabel;
-    QPushButton *getTempButton;
     QPushButton *switchButton;
-    QPushButton *quitButton;
     QDialogButtonBox *buttonBox;
 
     QTcpSocket *tcpSocket;
