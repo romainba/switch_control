@@ -50,6 +50,7 @@ class QComboBox;
 class QDialogButtonBox;
 class QLabel;
 class QLineEdit;
+class QSlider;
 class QPushButton;
 class QTcpSocket;
 class QNetworkSession;
@@ -70,8 +71,9 @@ private slots:
     void sessionOpened();
     void requestStatus();
     void switchToggled();
+    void tempThresChanged();
 
-    void sendHeader(quint16 id, quint16 len);
+    void sendCmd(int cmd, int *data);
     void timerEvent(QTimerEvent *e);
 
 private:
@@ -80,12 +82,11 @@ private:
     QLabel *tempThresLabel;
     QLineEdit *hostLineEdit;
     QLineEdit *portLineEdit;
-    QLineEdit *tempThresLineEdit;
+    QSlider *tempThresSlider;
     QLabel *tempLabel;
     QPushButton *switchButton;
     QDialogButtonBox *buttonBox;
 
-    QTcpSocket *tcpSocket;
     qint16 currentTemp;
     qint16 tempThres;
     quint16 blockSize;
@@ -93,6 +94,7 @@ private:
     int statusTimer;
     struct status status;
 
+    QTcpSocket *tcpSocket;
     QNetworkSession *networkSession;
 };
 

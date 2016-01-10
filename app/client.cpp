@@ -52,9 +52,9 @@
 Client::Client(QWidget *parent)
 :   QDialog(parent), networkSession(0)
 {
-    hostLabel = new QLabel(tr("Server name:"));
-    portLabel = new QLabel(tr("Server port:"));
-    tempThresLabel = new QLabel(tr("Temp threshold:"));
+    hostLabel = new QLabel(tr("Server name"));
+    portLabel = new QLabel(tr("Server port"));
+    tempThresLabel = new QLabel(tr("Temp threshold"));
 
     hostLineEdit = new QLineEdit;
     hostLineEdit->setText(IPADDR);
@@ -88,15 +88,16 @@ Client::Client(QWidget *parent)
     portLineEdit->setValidator(new QIntValidator(1, 65535, this));
     portLineEdit->setText(QString::number(PORT));
 
-    tempThresLineEdit = new QLineEdit;
-    tempThresLineEdit->setValidator(new QIntValidator(5, 25, this));
-    tempThresLineEdit->setText(QString::number(TEMPTHRES));
+    tempThresSlider = new QSlider(Qt::Horizontal, this);
+    tempThresSlider->setMinimum(15);
+    tempThresSlider->setMaximum(25);
+    tempThresSlider->setValue(TEMPTHRES);
 
     hostLabel->setBuddy(hostLineEdit);
     portLabel->setBuddy(portLineEdit);
-    tempThresLabel->setBuddy(tempThresLineEdit);
+    tempThresLabel->setBuddy(tempThresSlider);
 
-    tempLabel = new QLabel(tr("None"));
+    tempLabel = new QLabel(tr("-"));
 
     switchButton = new QPushButton("Switch ON", this);
     switchButton->setCheckable(true);
@@ -111,8 +112,8 @@ Client::Client(QWidget *parent)
             this, SLOT(enableButtons()));
     connect(portLineEdit, SIGNAL(textChanged(QString)),
             this, SLOT(enableButtons()));
-    connect(tempThresLineEdit, SIGNAL(textChanged(QString)),
-            this, SLOT(enableButtons()));
+    connect(tempThresSlider, SIGNAL(valueChanged(int)),
+            this, SLOT(tempThresChanged()));
     connect(switchButton, SIGNAL(clicked()), this, SLOT(switchToggled()));
 
     connect(tcpSocket, SIGNAL(readyRead()), this, SLOT(readResp()));
@@ -125,7 +126,7 @@ Client::Client(QWidget *parent)
     mainLayout->addWidget(portLabel, 1, 0);
     mainLayout->addWidget(portLineEdit, 1, 1);
     mainLayout->addWidget(tempThresLabel, 2, 0);
-    mainLayout->addWidget(tempThresLineEdit, 2, 1);
+    mainLayout->addWidget(tempThresSlider, 2, 1);
     mainLayout->addWidget(tempLabel, 3, 0, 1, 1);
     mainLayout->addWidget(buttonBox, 3, 1, 1, 3);
     setLayout(mainLayout);
@@ -159,93 +160,117 @@ Client::Client(QWidget *parent)
     }
 
     enableButtons();
+
     requestStatus();
 
     statusTimer = startTimer(STATUSTIMEOUT * 1000);
 }
 
 
-QDataStream &operator<<(QDataStream &out, const struct cmd_header &p)
+QDataStream &operator<<(QDataStream &out, const struct cmd &p)
 {
-    out << (qint32)p.id << (qint32)p.len;
+    int i, *ptr = (int *)&p.u;
+    out << p.header.id << p.header.len;
+    for (i = 0; i < p.header.len / 4; i++)
+         out << ptr[i];
     return out;
 }
 
 QDataStream &operator>>(QDataStream &in, struct resp_header &p)
 {
-    quint32 id, status, len;
+    in >> p.id >> p.status >> p.len;
 
-    in >> id >> status >> len;
-    p.id = (int)id;
-    p.status = (int)status;
-    p.len = (int)len;
     return in;
 }
 
-void Client::sendHeader(quint16 id, quint16 len)
+QDataStream &operator>>(QDataStream &in, struct resp &p)
 {
-    struct cmd_header header;
+    int i, *ptr = (int *)&p.u;
 
-    blockSize = 0;
-    tcpSocket->abort();
+    for (i = 0; i < p.header.len; i++)
+        in >> ptr[i];
 
-    tcpSocket->connectToHost(hostLineEdit->text(),
-                             portLineEdit->text().toInt());
+    return in;
+}
 
-    qDebug() << "connected to server";
+static int cmdDataSize[CMD_NUM] = {
+    [CMD_SET_SW_POS] = sizeof(int),
+    [CMD_TOGGLE_MODE] = 0,
+    [CMD_SET_TEMP] = sizeof(int),
+    [CMD_GET_STATUS] = 0
+};
+
+static int respDataSize[CMD_NUM] = {
+    [CMD_SET_SW_POS] = 0,
+    [CMD_TOGGLE_MODE] = 0,
+    [CMD_SET_TEMP] = 0,
+    [CMD_GET_STATUS] = sizeof(struct status)
+};
+
+void Client::sendCmd(int cmd, int *data)
+{
+    struct cmd c;
+
+    if (cmd >= CMD_NUM)
+        return;
+
+    qDebug() << "sendCmd" << cmd << "len" << cmdDataSize[cmd];
+
+    c.header.id = cmd;
+    c.header.len = cmdDataSize[cmd];
+    memcpy(&c.u, data, cmdDataSize[cmd] / 4);
+
+    if (!tcpSocket->isValid()) {
+        qDebug() << "connectToHost";
+        tcpSocket->connectToHost(hostLineEdit->text(), portLineEdit->text().toInt());
+    }
 
     QDataStream out(tcpSocket);
     out.setByteOrder(QDataStream::BigEndian);
 
-    header.id = id;
-    header.len = len;
-
-    out << header;
-
-    qDebug() << "send header";
+    out << c;
 }
 
 void Client::requestStatus()
 {
-    sendHeader(CMD_GET_STATUS, 0);
+    sendCmd(CMD_GET_STATUS, NULL);
 }
+
+void Client::tempThresChanged()
+{
+    status.tempThres = tempThresSlider->value();
+    qDebug() << "tempThres " << status.tempThres;
+}
+
 
 void Client::switchToggled()
 {
     status.sw_pos = !status.sw_pos;
 
-    sendHeader(CMD_SET_SW_POS, sizeof(int));
-
-    QDataStream out(tcpSocket);
-    out.setByteOrder(QDataStream::BigEndian);
-    out << (quint32)status.sw_pos;
+    sendCmd(CMD_SET_SW_POS, &status.sw_pos);
 
     switchButton->setText(status.sw_pos ? "Switch OFF" : "Switch ON");
 }
 
-static int respSize[CMD_NUM] = {
-    [CMD_SET_SW_POS] = 0,
-    [CMD_TOGGLE_MODE] = 0,
-    [CMD_SET_TEMP] = 0,
-    [CMD_GET_STATUS] = sizeof(struct status),
-};
 
 void Client::readResp()
 {
     QDataStream in(tcpSocket);
     struct resp resp;
+
     in.setVersion(QDataStream::Qt_4_0);
     in.setByteOrder(QDataStream::BigEndian);
 
     if (tcpSocket->bytesAvailable() < (int)(sizeof(struct resp_header)))
         return;
+
     in >> resp.header;
 
-    qDebug() << "resp status " << resp.header.id <<
+    qDebug() << "resp" << resp.header.id <<
                 "status" << resp.header.status <<
                 "len" << resp.header.len;
 
-    if (resp.header.len != respSize[resp.header.id]) {
+    if (resp.header.len != respDataSize[resp.header.id]) {
         qDebug() << "Cmd" << resp.header.id << "with invalid len " << resp.header.len;
         return;
     }
@@ -254,16 +279,19 @@ void Client::readResp()
             return;
     }
 
+    in >> resp;
+
     switch (resp.header.id) {
     case CMD_GET_STATUS: {
-        in >> status.temp;
-        in >> status.tempThres;
-        in >> status.sw_pos;
+        struct status *s = &resp.u.status;
 
-        QString str = status.sw_pos ? "ON" : "OFF";
-        tempLabel->setText( str + " " + QString::number(status.temp / 1000.0) + "°C");
-        tempThresLineEdit->setText(QString::number(status.tempThres/1000.0));
-        switchButton->setText(status.sw_pos ? "Switch OFF" : "Switch ON");
+        memcpy(&status, s, sizeof(struct status));
+
+        QString str = s->sw_pos ? "ON" : "OFF";
+        tempLabel->setText( str + " " + QString::number(s->temp / 1000.0) + "°C");
+
+        tempThresSlider->setValue(s->tempThres/1000.0);
+        switchButton->setText(s->sw_pos ? "Switch OFF" : "Switch ON");
         break;
     }
     default:
@@ -304,8 +332,7 @@ void Client::enableButtons()
 {
     int flag = ((!networkSession || networkSession->isOpen()) &&
             !hostLineEdit->text().isEmpty() &&
-            !portLineEdit->text().isEmpty() &&
-            !tempThresLineEdit->text().isEmpty());
+            !portLineEdit->text().isEmpty());
 
      switchButton->setEnabled(flag);
 }
@@ -334,6 +361,12 @@ void Client::sessionOpened()
 void Client::timerEvent(QTimerEvent *e)
 {
     if (e->timerId() == statusTimer) {
+
+        int t = status.tempThres / 1000;
+        if (t != tempThresSlider->value()) {
+            status.tempThres = tempThresSlider->value() * 1000;
+            sendCmd(CMD_SET_TEMP, &status.tempThres);
+        }
         requestStatus();
         e->accept();
     }

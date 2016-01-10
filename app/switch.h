@@ -2,7 +2,7 @@
 #define SWITCH_H
 
 #define PORT 8998
-#define TEMPTHRES 20
+#define TEMPTHRES 25
 
 enum {
     CMD_SET_SW_POS,
