@@ -93,6 +93,7 @@ private:
 
     int statusTimer;
     struct status status;
+    int socketBusy;
 
     QTcpSocket *tcpSocket;
     QNetworkSession *networkSession;

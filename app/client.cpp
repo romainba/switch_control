@@ -47,7 +47,7 @@
 
 #define IPADDR "192.168.1.125"
 
-#define STATUSTIMEOUT 10
+#define STATUSTIMEOUT 5
 
 Client::Client(QWidget *parent)
 :   QDialog(parent), networkSession(0)
@@ -90,8 +90,8 @@ Client::Client(QWidget *parent)
 
     tempThresSlider = new QSlider(Qt::Horizontal, this);
     tempThresSlider->setMinimum(15);
-    tempThresSlider->setMaximum(25);
-    tempThresSlider->setValue(TEMPTHRES);
+    tempThresSlider->setMaximum(28);
+    tempThresSlider->setValue(0);
 
     hostLabel->setBuddy(hostLineEdit);
     portLabel->setBuddy(portLineEdit);
@@ -161,6 +161,7 @@ Client::Client(QWidget *parent)
 
     enableButtons();
 
+    socketBusy = 0;
     requestStatus();
 
     statusTimer = startTimer(STATUSTIMEOUT * 1000);
@@ -169,9 +170,9 @@ Client::Client(QWidget *parent)
 
 QDataStream &operator<<(QDataStream &out, const struct cmd &p)
 {
-    int i, *ptr = (int *)&p.u;
+    int *ptr = (int *)&p.u;
     out << p.header.id << p.header.len;
-    for (i = 0; i < p.header.len / 4; i++)
+    for (int i = 0; i < p.header.len / 4; i++)
          out << ptr[i];
     return out;
 }
@@ -179,7 +180,6 @@ QDataStream &operator<<(QDataStream &out, const struct cmd &p)
 QDataStream &operator>>(QDataStream &in, struct resp_header &p)
 {
     in >> p.id >> p.status >> p.len;
-
     return in;
 }
 
@@ -187,9 +187,8 @@ QDataStream &operator>>(QDataStream &in, struct resp &p)
 {
     int i, *ptr = (int *)&p.u;
 
-    for (i = 0; i < p.header.len; i++)
+    for (i = 0; i < p.header.len / 4; i++)
         in >> ptr[i];
-
     return in;
 }
 
@@ -209,16 +208,28 @@ static int respDataSize[CMD_NUM] = {
 
 void Client::sendCmd(int cmd, int *data)
 {
-    struct cmd c;
+    int cnt = 0;
+    QThread *thread = QThread::currentThread();
 
     if (cmd >= CMD_NUM)
         return;
 
-    qDebug() << "sendCmd" << cmd << "len" << cmdDataSize[cmd];
+    while (socketBusy) {
+        if (cnt++ % 5)
+            qDebug() << "busy";
+        thread->msleep(100);
+    }
+    socketBusy = 1;
 
+    if (cmdDataSize[cmd])
+        qDebug() << "sendCmd" << cmd << "len" << cmdDataSize[cmd] << "data" << data[0];
+    else
+        qDebug() << "sendCmd" << cmd;
+
+    struct cmd c;
     c.header.id = cmd;
     c.header.len = cmdDataSize[cmd];
-    memcpy(&c.u, data, cmdDataSize[cmd] / 4);
+    memcpy(&c.u, data, cmdDataSize[cmd]);
 
     if (!tcpSocket->isValid()) {
         qDebug() << "connectToHost";
@@ -229,34 +240,15 @@ void Client::sendCmd(int cmd, int *data)
     out.setByteOrder(QDataStream::BigEndian);
 
     out << c;
+    qDebug() << "sent";
 }
-
-void Client::requestStatus()
-{
-    sendCmd(CMD_GET_STATUS, NULL);
-}
-
-void Client::tempThresChanged()
-{
-    status.tempThres = tempThresSlider->value();
-    qDebug() << "tempThres " << status.tempThres;
-}
-
-
-void Client::switchToggled()
-{
-    status.sw_pos = !status.sw_pos;
-
-    sendCmd(CMD_SET_SW_POS, &status.sw_pos);
-
-    switchButton->setText(status.sw_pos ? "Switch OFF" : "Switch ON");
-}
-
 
 void Client::readResp()
 {
     QDataStream in(tcpSocket);
     struct resp resp;
+
+    qDebug() << "readResp socketBusy" << socketBusy;
 
     in.setVersion(QDataStream::Qt_4_0);
     in.setByteOrder(QDataStream::BigEndian);
@@ -270,16 +262,16 @@ void Client::readResp()
                 "status" << resp.header.status <<
                 "len" << resp.header.len;
 
+    if (tcpSocket->bytesAvailable() < resp.header.len)
+        return;
+
+    in >> resp;
+    socketBusy = 0;
+
     if (resp.header.len != respDataSize[resp.header.id]) {
         qDebug() << "Cmd" << resp.header.id << "with invalid len " << resp.header.len;
         return;
     }
-    if (resp.header.len) {
-        if (tcpSocket->bytesAvailable() < resp.header.len)
-            return;
-    }
-
-    in >> resp;
 
     switch (resp.header.id) {
     case CMD_GET_STATUS: {
@@ -291,14 +283,33 @@ void Client::readResp()
         tempLabel->setText( str + " " + QString::number(s->temp / 1000.0) + "°C");
 
         tempThresSlider->setValue(s->tempThres/1000.0);
+        qDebug() << "  temp" << s->temp / 1000.0 << "thres" << s->tempThres / 1000.0;
         switchButton->setText(s->sw_pos ? "Switch OFF" : "Switch ON");
         break;
     }
-    default:
-        qDebug() << "invalid resp id" << resp.header.id;
     }
 
     switchButton->setEnabled(true);
+    qDebug() << "received";
+}
+
+void Client::requestStatus()
+{
+    sendCmd(CMD_GET_STATUS, NULL);
+}
+
+void Client::tempThresChanged()
+{
+}
+
+
+void Client::switchToggled()
+{
+    status.sw_pos = !status.sw_pos;
+
+    sendCmd(CMD_SET_SW_POS, &status.sw_pos);
+
+    switchButton->setText(status.sw_pos ? "Switch OFF" : "Switch ON");
 }
 
 void Client::displayError(QAbstractSocket::SocketError socketError)
@@ -366,8 +377,9 @@ void Client::timerEvent(QTimerEvent *e)
         if (t != tempThresSlider->value()) {
             status.tempThres = tempThresSlider->value() * 1000;
             sendCmd(CMD_SET_TEMP, &status.tempThres);
-        }
-        requestStatus();
+        } else
+            requestStatus();
+
         e->accept();
     }
 }

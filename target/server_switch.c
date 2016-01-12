@@ -18,7 +18,7 @@
 #include "sensor.h"
 
 #define PERIOD_CHECK 30 /* second */
-#define DEFAULT_TEMP 30000 /* degres */
+#define DEFAULT_TEMP (25 * 1000) /* degres */
 
 #define GPIO_SW 7
 
@@ -185,11 +185,12 @@ static int handle_sess(int s, struct config *config)
 			resp.header.status = STATUS_CMD_INVALID;
 		}
 
-		ret = write(s, &resp, sizeof(resp));
+		ret = write(s, &resp, resp.header.len + sizeof(struct resp_header));
 		if (ret < 0) {
 			ERROR("write error %s", strerror(errno));
 			break;
 		}
+		DEBUG("send cmd %d len %d\n", resp.header.id, resp.header.len);
 
 		switch (req) {
 		case 0:
