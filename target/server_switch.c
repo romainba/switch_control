@@ -30,7 +30,7 @@
 
 struct config {
 	char dev[20];
-	int forced_pid;
+	int active;
 	int temp;
 };
 
@@ -100,43 +100,19 @@ static void switch_off(struct config *config)
 {
 	DEBUG("%s", __func__);
 
-	if (config->forced_pid) {
-		int ret = kill(config->forced_pid, SIGTERM);
-		if (ret < 0) {
-			ERROR("kill failed: %s", strerror(errno));
-		}
-	}
 #ifdef REAL_TARGET
 	led_set(LED2, 0);
 	gpio_set(GPIO_SW, 0);
 #endif
-	config->forced_pid = 0;
 }
 
 static void switch_on(struct config *config)
 {
 	DEBUG("%s", __func__);
 
-	config->forced_pid = getpid();
 #ifdef REAL_TARGET
 	led_set(LED2, 255);
 	gpio_set(GPIO_SW, 255);
-
-	while (1) {
-		int temp = 0;
-		if (ds1820_get_temp(config->dev, &temp))
-			ERROR("sensor reading failed");
-
-		if (temp > config->temp)
-			gpio_set(GPIO_SW, 0);
-		else
-			gpio_set(GPIO_SW, 255);
-
-		sleep(PERIOD_CHECK);
-	}
-#else
-	while (1)
-		sleep(PERIOD_CHECK);
 #endif
 }
 
@@ -146,14 +122,34 @@ static int handle_sess(int s, struct config *config)
 		struct resp resp;
 		struct cmd cmd;
 		int ret, req = -1, sw_pos = config->forced_pid ? 1 : 0;
+		struct pollfd fds = { .fd = s, .event = POLLIN };
+
+		ret = poll(&fds, 1, 100);
+		if (ret < 0) {
+			ERROR("poll error %s", strerror(errno));
+			break;
+		} else if (ret == 0) {
+			/* timeout */
+			if (config->active) {
+				int temp = 0;
+				if (ds1820_get_temp(config->dev, &temp))
+					ERROR("sensor reading failed");
+
+				if (temp > config->temp)
+					switch_off(config);
+				else
+					switch_on(config);
+			}
+		}
 
 		ret = read(s, &cmd, sizeof(struct cmd));
 		if (ret < 0) {
 			ERROR("read error %s", strerror(errno));
 			break;
-		} else if (ret == 0)
+		} else if (ret == 0) {
+			DEBUG("read 0");
 			break; /* connection closed */
-
+		}
 		DEBUG("received cmd %d len %d", cmd.header.id, cmd.header.len);
 
 		resp.header.id = cmd.header.id;
@@ -162,8 +158,7 @@ static int handle_sess(int s, struct config *config)
 
 		switch (cmd.header.id) {
 		case CMD_SET_SW_POS:
-			req = cmd.u.sw_pos; /* 0 off, 1 on */
-			DEBUG("sw_pos %d", req);
+			config->sw_pos = cmd.u.sw_pos; /* 0 off, 1 on */
 			break;
 		case CMD_GET_STATUS: {
 			int temp;
@@ -266,29 +261,33 @@ int main(int argc, char *argv[])
 			break;
 		}
 
+		DEBUG("new socket");
+
 		pid = fork();
 		if (pid < 0)
 			ERROR("fork: %s",  strerror(errno));
 		else if (pid == 0) {
+			DEBUG("new proc %d", getpid());
 			handle_sess(s, config);
+			DEBUG("proc %d done", getpid());
 			exit(0);
 		}
 
 		while (1) {
-			pid = waitpid(0, &status, WNOHANG);
+			pid = waitpid(-1, &status, WNOHANG);
 			if (pid < 0) {
 				ERROR("waitpid: %s",  strerror(errno));
 				break;
 			} else if (pid == 0)
 				break;
-			DEBUG("process %d ended", pid);
+			DEBUG("proc %d ended", pid);
 		}
 
 		close(s);
+		DEBUG("closed socket");
 	}
 
 	close(sock);
-
 	if (shmdt(config))
 		ERROR("shmdt failed: %s", strerror(errno));
 
