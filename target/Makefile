@@ -1,9 +1,11 @@
-CC=mips-openwrt-linux-gcc
-#CC=gcc
+#CC=mips-openwrt-linux-gcc
+CC=gcc
 
 CFLAGS = -g -O2 -Wall -Wstrict-prototypes -Wno-unused-function -Wno-unused-variable
-
 CFLAGS += -I ../app
+ifneq ($(CC),gcc)
+	CFLAGS += -DREAL_TARGET
+endif
 
 BIN = server client test toggle_mode
 

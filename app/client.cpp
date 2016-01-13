@@ -45,7 +45,13 @@
 #include "client.h"
 #include "switch.h"
 
+#if 0
 #define IPADDR "192.168.1.125"
+#define ENDIAN QDataStream::BigEndian
+#else
+#define IPADDR "127.0.0.1"
+#define ENDIAN QDataStream::LittleEndian
+#endif
 
 #define STATUSTIMEOUT 5
 
@@ -237,7 +243,7 @@ void Client::sendCmd(int cmd, int *data)
     }
 
     QDataStream out(tcpSocket);
-    out.setByteOrder(QDataStream::BigEndian);
+    out.setByteOrder(ENDIAN);
 
     out << c;
     qDebug() << "sent";
@@ -251,7 +257,7 @@ void Client::readResp()
     qDebug() << "readResp socketBusy" << socketBusy;
 
     in.setVersion(QDataStream::Qt_4_0);
-    in.setByteOrder(QDataStream::BigEndian);
+    in.setByteOrder(ENDIAN);
 
     if (tcpSocket->bytesAvailable() < (int)(sizeof(struct resp_header)))
         return;

@@ -106,9 +106,10 @@ static void switch_off(struct config *config)
 			ERROR("kill failed: %s", strerror(errno));
 		}
 	}
-
+#ifdef REAL_TARGET
 	led_set(LED2, 0);
 	gpio_set(GPIO_SW, 0);
+#endif
 	config->forced_pid = 0;
 }
 
@@ -117,6 +118,7 @@ static void switch_on(struct config *config)
 	DEBUG("%s", __func__);
 
 	config->forced_pid = getpid();
+#ifdef REAL_TARGET
 	led_set(LED2, 255);
 	gpio_set(GPIO_SW, 255);
 
@@ -132,6 +134,10 @@ static void switch_on(struct config *config)
 
 		sleep(PERIOD_CHECK);
 	}
+#else
+	while (1)
+		sleep(PERIOD_CHECK);
+#endif
 }
 
 static int handle_sess(int s, struct config *config)
@@ -157,15 +163,19 @@ static int handle_sess(int s, struct config *config)
 		switch (cmd.header.id) {
 		case CMD_SET_SW_POS:
 			req = cmd.u.sw_pos; /* 0 off, 1 on */
+			DEBUG("sw_pos %d", req);
 			break;
 		case CMD_GET_STATUS: {
 			int temp;
+#ifdef REAL_TARGET
 			if (ds1820_get_temp(config->dev, &temp)) {
 				resp.header.status = STATUS_CMD_FAILED;
 				ERROR("Sensor reading failed");
 				break;
 			}
-
+#else
+			temp = 23000;
+#endif
 			resp.header.len = sizeof(struct status);
 			resp.u.status.temp = temp;
 			resp.u.status.tempThres = config->temp;
@@ -213,6 +223,7 @@ int main(int argc, char *argv[])
 	struct sockaddr_in sin;
 	struct config *config;
 
+	/* shared memory between all child processes */
 	shmid = shmget(SHM_KEY, sizeof(struct config), 0644 | IPC_CREAT);
 	if (shmid < 0) {
 		ERROR("shmget failed: %s", strerror(errno));
@@ -228,13 +239,13 @@ int main(int argc, char *argv[])
 	memset(config, 0, sizeof(struct config));
 	config->temp = DEFAULT_TEMP;
 
+#ifdef REAL_TARGET
 	if (ds1820_search(config->dev)) {
 		ERROR("Did not find any sensor");
 		return 0;
 	}
-
 	gpio_conf(GPIO_SW);
-
+#endif
 	switch_off(config);
 
 	sock = socket(AF_INET, SOCK_STREAM, 0);
