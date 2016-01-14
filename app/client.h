@@ -66,7 +66,12 @@ public:
 private slots:
     void readResp();
 
-    void displayError(QAbstractSocket::SocketError socketError);
+    void socketError(QAbstractSocket::SocketError error);
+    void socketStateChanged(QAbstractSocket::SocketState tate);
+
+    void enable();
+    void disable();
+
     void enableButtons();
     void sessionOpened();
     void requestStatus();
@@ -80,6 +85,7 @@ private:
     QLabel *hostLabel;
     QLabel *portLabel;
     QLabel *tempThresLabel;
+    QLabel *tempThresValueLabel;
     QLineEdit *hostLineEdit;
     QLineEdit *portLineEdit;
     QSlider *tempThresSlider;

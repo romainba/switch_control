@@ -12,13 +12,20 @@
 #include <sys/wait.h>
 #include <sys/stat.h>
 #include <sys/shm.h>
+#include <poll.h>
 
 #include "util.h"
 #include <switch.h>
 #include "sensor.h"
+#include "send_multicast.h"
 
 #define PERIOD_CHECK 30 /* second */
 #define DEFAULT_TEMP (25 * 1000) /* degres */
+
+#define MULTICAST_ADDR "239.0.0.1"
+#define MULTICAST_PORT 6000
+#define LOCAL_ADDR "10.41.22.213"
+#define MULTICAST_MSG "radiator"
 
 #define GPIO_SW 7
 
@@ -30,11 +37,12 @@
 
 struct config {
 	char dev[20];
+	int req;
 	int active;
 	int temp;
 };
 
-#define SHM_KEY 0x1234
+#define SHM_KEY 0x1235
 
 static int file_exists(char *file)
 {
@@ -96,61 +104,84 @@ static int led_get(char *led)
 	return atoi(buf);
 }
 
-static void switch_off(struct config *config)
+static inline void switch_off(struct config *config)
 {
+	if (!config->active)
+		return;
+
 	DEBUG("%s", __func__);
 
 #ifdef REAL_TARGET
 	led_set(LED2, 0);
 	gpio_set(GPIO_SW, 0);
 #endif
+	config->active = 0;
 }
 
-static void switch_on(struct config *config)
+static inline void switch_on(struct config *config)
 {
+	if (config->active)
+		return;
+
 	DEBUG("%s", __func__);
 
 #ifdef REAL_TARGET
 	led_set(LED2, 255);
 	gpio_set(GPIO_SW, 255);
 #endif
+	config->active = 1;
+}
+
+static inline int get_temp(struct config *config)
+{
+	int temp = 0;
+#ifdef REAL_TARGET
+	if (ds1820_get_temp(config->dev, &temp))
+		ERROR("sensor reading failed");
+#else
+	temp = 23 * 1000;
+#endif
+	return temp;
 }
 
 static int handle_sess(int s, struct config *config)
 {
-	while (1) {
-		struct resp resp;
-		struct cmd cmd;
-		int ret, req = -1, sw_pos = config->forced_pid ? 1 : 0;
-		struct pollfd fds = { .fd = s, .event = POLLIN };
+	int new_req = 0;
+	struct pollfd fds = { .fd = s, .events = POLLIN };
+	struct resp resp;
+	struct cmd cmd;
+	int ret, sw_on;
 
-		ret = poll(&fds, 1, 100);
+	while (1) {
+		ret = poll(&fds, 1, 500);
 		if (ret < 0) {
 			ERROR("poll error %s", strerror(errno));
 			break;
 		} else if (ret == 0) {
 			/* timeout */
-			if (config->active) {
-				int temp = 0;
-				if (ds1820_get_temp(config->dev, &temp))
-					ERROR("sensor reading failed");
-
-				if (temp > config->temp)
+			if (new_req != config->req) {
+				config->req = new_req;
+				DEBUG("req %d\n", new_req);
+			}
+			if (config->req) {
+				if (get_temp(config) > config->temp)
 					switch_off(config);
 				else
 					switch_on(config);
-			}
+			} else
+				switch_off(config);
+			continue;
 		}
 
 		ret = read(s, &cmd, sizeof(struct cmd));
 		if (ret < 0) {
 			ERROR("read error %s", strerror(errno));
 			break;
-		} else if (ret == 0) {
-			DEBUG("read 0");
+		} else if (ret == 0)
 			break; /* connection closed */
-		}
-		DEBUG("received cmd %d len %d", cmd.header.id, cmd.header.len);
+
+		DEBUG("received cmd %d len %d data %d", cmd.header.id, cmd.header.len,
+		      cmd.header.len ? cmd.u.sw_pos : -1);
 
 		resp.header.id = cmd.header.id;
 		resp.header.status = STATUS_OK;
@@ -158,29 +189,21 @@ static int handle_sess(int s, struct config *config)
 
 		switch (cmd.header.id) {
 		case CMD_SET_SW_POS:
-			config->sw_pos = cmd.u.sw_pos; /* 0 off, 1 on */
+			new_req = cmd.u.sw_pos; /* 0 off, 1 on */
 			break;
 		case CMD_GET_STATUS: {
-			int temp;
-#ifdef REAL_TARGET
-			if (ds1820_get_temp(config->dev, &temp)) {
-				resp.header.status = STATUS_CMD_FAILED;
-				ERROR("Sensor reading failed");
-				break;
-			}
-#else
-			temp = 23000;
-#endif
+			int temp = get_temp(config);
+
 			resp.header.len = sizeof(struct status);
 			resp.u.status.temp = temp;
 			resp.u.status.tempThres = config->temp;
-			resp.u.status.sw_pos = sw_pos;
+			resp.u.status.sw_pos = config->req;
 			DEBUG("temp %d.%d", temp/1000, temp % 1000);
 			break;
 		}
 		case CMD_TOGGLE_MODE:
-			DEBUG("toggle mode");
-			req = !sw_pos;
+			DEBUG("toggle");
+			new_req = !config->req;
 			break;
 		case CMD_SET_TEMP:
 			DEBUG("set_temp %d", cmd.u.temp);
@@ -196,17 +219,6 @@ static int handle_sess(int s, struct config *config)
 			break;
 		}
 		DEBUG("send cmd %d len %d\n", resp.header.id, resp.header.len);
-
-		switch (req) {
-		case 0:
-			if (sw_pos == 1)
-				switch_off(config);
-			break;
-		case 1:
-			if (sw_pos == 0)
-				switch_on(config);
-			break;
-		}
 	}
 	close(s);
 	return 0;
@@ -252,6 +264,10 @@ int main(int argc, char *argv[])
 
 	listen(sock, 5);
 	printf("listening port %d\n", PORT);
+
+	if (send_multicast(MULTICAST_ADDR, MULTICAST_PORT, LOCAL_ADDR,
+			   MULTICAST_MSG))
+		ERROR("send_multicast failed");
 
 	while (1) {
 

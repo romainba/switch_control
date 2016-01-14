@@ -7,11 +7,11 @@ ifneq ($(CC),gcc)
 	CFLAGS += -DREAL_TARGET
 endif
 
-BIN = server client test toggle_mode
+BIN = server toggle_mode
 
 all: $(BIN)
 
-server: util.o sensor.o server_switch.o
+server: util.o sensor.o send_multicast.o server_switch.o
 	$(CC) -o $@ $^
 
 toggle_mode: util.o toggle_mode.o
@@ -22,6 +22,10 @@ client: client_switch.o util.o
 
 test: sensor.o test.o
 	$(CC) -o $@ $^
+
+multicast: multicast.o
+	$(CC) -o $@ $^
+
 
 %.o: %.c
 	$(CC) -c -o $@ $< $(CFLAGS)

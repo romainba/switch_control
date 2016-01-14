@@ -45,6 +45,8 @@
 #include "client.h"
 #include "switch.h"
 
+#define APP_NAME "Radiateur"
+
 #if 0
 #define IPADDR "192.168.1.125"
 #define ENDIAN QDataStream::BigEndian
@@ -60,7 +62,7 @@ Client::Client(QWidget *parent)
 {
     hostLabel = new QLabel(tr("Server name"));
     portLabel = new QLabel(tr("Server port"));
-    tempThresLabel = new QLabel(tr("Temp threshold"));
+    tempThresLabel = new QLabel(tr("Max"));
 
     hostLineEdit = new QLineEdit;
     hostLineEdit->setText(IPADDR);
@@ -104,6 +106,8 @@ Client::Client(QWidget *parent)
     tempThresLabel->setBuddy(tempThresSlider);
 
     tempLabel = new QLabel(tr("-"));
+    tempThresValueLabel = new QLabel(tr("-"));
+    tempThresValueLabel->setBuddy(tempThresSlider);
 
     switchButton = new QPushButton("Switch ON", this);
     switchButton->setCheckable(true);
@@ -124,7 +128,9 @@ Client::Client(QWidget *parent)
 
     connect(tcpSocket, SIGNAL(readyRead()), this, SLOT(readResp()));
     connect(tcpSocket, SIGNAL(error(QAbstractSocket::SocketError)),
-            this, SLOT(displayError(QAbstractSocket::SocketError)));
+            this, SLOT(socketError(QAbstractSocket::SocketError)));
+    connect(tcpSocket, SIGNAL(stateChanged(QAbstractSocket::SocketState)),
+            this, SLOT(socketStateChanged(QAbstractSocket::SocketState)));
 
     QGridLayout *mainLayout = new QGridLayout;
     mainLayout->addWidget(hostLabel, 0, 0);
@@ -133,11 +139,12 @@ Client::Client(QWidget *parent)
     mainLayout->addWidget(portLineEdit, 1, 1);
     mainLayout->addWidget(tempThresLabel, 2, 0);
     mainLayout->addWidget(tempThresSlider, 2, 1);
+    mainLayout->addWidget(tempThresValueLabel, 2, 2);
     mainLayout->addWidget(tempLabel, 3, 0, 1, 1);
     mainLayout->addWidget(buttonBox, 3, 1, 1, 3);
     setLayout(mainLayout);
 
-    setWindowTitle(tr("Switch control"));
+    setWindowTitle(tr(APP_NAME));
     portLineEdit->setFocus();
 
     QNetworkConfigurationManager manager;
@@ -168,9 +175,8 @@ Client::Client(QWidget *parent)
     enableButtons();
 
     socketBusy = 0;
+    statusTimer = 0;
     requestStatus();
-
-    statusTimer = startTimer(STATUSTIMEOUT * 1000);
 }
 
 
@@ -227,34 +233,35 @@ void Client::sendCmd(int cmd, int *data)
     }
     socketBusy = 1;
 
-    if (cmdDataSize[cmd])
-        qDebug() << "sendCmd" << cmd << "len" << cmdDataSize[cmd] << "data" << data[0];
-    else
-        qDebug() << "sendCmd" << cmd;
-
     struct cmd c;
     c.header.id = cmd;
     c.header.len = cmdDataSize[cmd];
     memcpy(&c.u, data, cmdDataSize[cmd]);
 
     if (!tcpSocket->isValid()) {
-        qDebug() << "connectToHost";
         tcpSocket->connectToHost(hostLineEdit->text(), portLineEdit->text().toInt());
+        if (!tcpSocket->isValid()) {
+                tcpSocket->error(QAbstractSocket::HostNotFoundError);
+                qDebug() << "connectToHost failed";
+                return;
+        }
     }
 
     QDataStream out(tcpSocket);
     out.setByteOrder(ENDIAN);
 
     out << c;
-    qDebug() << "sent";
+
+    if (cmdDataSize[cmd])
+        qDebug() << "sendCmd" << cmd << "len" << cmdDataSize[cmd] << "data" << data[0];
+    else
+        qDebug() << "sendCmd" << cmd;
 }
 
 void Client::readResp()
 {
     QDataStream in(tcpSocket);
     struct resp resp;
-
-    qDebug() << "readResp socketBusy" << socketBusy;
 
     in.setVersion(QDataStream::Qt_4_0);
     in.setByteOrder(ENDIAN);
@@ -296,7 +303,6 @@ void Client::readResp()
     }
 
     switchButton->setEnabled(true);
-    qDebug() << "received";
 }
 
 void Client::requestStatus()
@@ -306,8 +312,10 @@ void Client::requestStatus()
 
 void Client::tempThresChanged()
 {
-}
+    int temp = tempThresSlider->value();
 
+    tempThresValueLabel->setText(QString::number(temp) + "°C");
+}
 
 void Client::switchToggled()
 {
@@ -318,30 +326,61 @@ void Client::switchToggled()
     switchButton->setText(status.sw_pos ? "Switch OFF" : "Switch ON");
 }
 
-void Client::displayError(QAbstractSocket::SocketError socketError)
+void Client::enable()
 {
-    switch (socketError) {
+    statusTimer = startTimer(STATUSTIMEOUT * 1000);
+    qDebug() << "enable";
+}
+
+void Client::disable()
+{
+    qDebug() << "disable";
+    if (statusTimer) {
+        killTimer(statusTimer);
+        statusTimer = 0;
+    }
+    switchButton->setEnabled(0);
+    tempLabel->setText("-");
+    tempThresValueLabel->setText("-");
+}
+
+void Client::socketStateChanged(QAbstractSocket::SocketState state)
+{
+    switch (state) {
+    case QAbstractSocket::UnconnectedState:
+        tcpSocket->abort();
+        disable();
+        break;
+    case QAbstractSocket::ConnectedState:
+        enable();
+        break;
+    default:
+        break;
+    }
+}
+
+void Client::socketError(QAbstractSocket::SocketError error)
+{
+    switch (error) {
     case QAbstractSocket::RemoteHostClosedError:
         break;
     case QAbstractSocket::HostNotFoundError:
-        QMessageBox::information(this, tr("Fortune Client"),
+        QMessageBox::information(this, tr(APP_NAME),
                                  tr("The host was not found. Please check the "
                                     "host name and port settings."));
         break;
     case QAbstractSocket::ConnectionRefusedError:
-        QMessageBox::information(this, tr("Fortune Client"),
+        QMessageBox::information(this, tr(APP_NAME),
                                  tr("The connection was refused by the peer. "
-                                    "Make sure the fortune server is running, "
+                                    "Make sure the server is running, "
                                     "and check that the host name and port "
                                     "settings are correct."));
         break;
     default:
-        QMessageBox::information(this, tr("Fortune Client"),
+        QMessageBox::information(this, tr(APP_NAME),
                                  tr("The following error occurred: %1.")
                                  .arg(tcpSocket->errorString()));
     }
-
-    switchButton->setEnabled(true);
 }
 
 
