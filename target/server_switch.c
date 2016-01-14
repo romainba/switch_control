@@ -22,10 +22,10 @@
 #define PERIOD_CHECK 30 /* second */
 #define DEFAULT_TEMP (25 * 1000) /* degres */
 
+#define INTERFACE "ens3"
+
 #define MULTICAST_ADDR "239.0.0.1"
 #define MULTICAST_PORT 6000
-#define LOCAL_ADDR "10.41.22.213"
-#define MULTICAST_MSG "radiator"
 
 #define GPIO_SW 7
 
@@ -224,11 +224,15 @@ static int handle_sess(int s, struct config *config)
 	return 0;
 }
 
+
+
 int main(int argc, char *argv[])
 {
 	int sock, s, ret, pid, status, shmid;
 	struct sockaddr_in sin;
+	struct in_addr in_addr;
 	struct config *config;
+	char *buffer;
 
 	/* shared memory between all child processes */
 	shmid = shmget(SHM_KEY, sizeof(struct config), 0644 | IPC_CREAT);
@@ -265,9 +269,16 @@ int main(int argc, char *argv[])
 	listen(sock, 5);
 	printf("listening port %d\n", PORT);
 
-	if (send_multicast(MULTICAST_ADDR, MULTICAST_PORT, LOCAL_ADDR,
-			   MULTICAST_MSG))
-		ERROR("send_multicast failed");
+	buffer = get_local_ipaddr(INTERFACE);
+	if (buffer) {
+		char buf[200];
+		sprintf(buf, "radiator:%s:%d", buffer, PORT);
+
+		if (send_multicast(MULTICAST_ADDR, MULTICAST_PORT, buf))
+			ERROR("send_multicast failed");
+
+		free(buffer);
+	}
 
 	while (1) {
 

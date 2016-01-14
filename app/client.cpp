@@ -48,10 +48,8 @@
 #define APP_NAME "Radiateur"
 
 #if 0
-#define IPADDR "192.168.1.125"
 #define ENDIAN QDataStream::BigEndian
 #else
-#define IPADDR "127.0.0.1"
 #define ENDIAN QDataStream::LittleEndian
 #endif
 
@@ -60,12 +58,7 @@
 Client::Client(QWidget *parent)
 :   QDialog(parent), networkSession(0)
 {
-    hostLabel = new QLabel(tr("Server name"));
-    portLabel = new QLabel(tr("Server port"));
     tempThresLabel = new QLabel(tr("Max"));
-
-    hostLineEdit = new QLineEdit;
-    hostLineEdit->setText(IPADDR);
 
 #if 0
     // find out name of this machine
@@ -92,17 +85,11 @@ Client::Client(QWidget *parent)
     }
 #endif
 
-    portLineEdit = new QLineEdit;
-    portLineEdit->setValidator(new QIntValidator(1, 65535, this));
-    portLineEdit->setText(QString::number(PORT));
-
     tempThresSlider = new QSlider(Qt::Horizontal, this);
     tempThresSlider->setMinimum(15);
     tempThresSlider->setMaximum(28);
     tempThresSlider->setValue(0);
 
-    hostLabel->setBuddy(hostLineEdit);
-    portLabel->setBuddy(portLineEdit);
     tempThresLabel->setBuddy(tempThresSlider);
 
     tempLabel = new QLabel(tr("-"));
@@ -118,10 +105,6 @@ Client::Client(QWidget *parent)
 
     tcpSocket = new QTcpSocket(this);
 
-    connect(hostLineEdit, SIGNAL(textChanged(QString)),
-            this, SLOT(enableButtons()));
-    connect(portLineEdit, SIGNAL(textChanged(QString)),
-            this, SLOT(enableButtons()));
     connect(tempThresSlider, SIGNAL(valueChanged(int)),
             this, SLOT(tempThresChanged()));
     connect(switchButton, SIGNAL(clicked()), this, SLOT(switchToggled()));
@@ -133,19 +116,14 @@ Client::Client(QWidget *parent)
             this, SLOT(socketStateChanged(QAbstractSocket::SocketState)));
 
     QGridLayout *mainLayout = new QGridLayout;
-    mainLayout->addWidget(hostLabel, 0, 0);
-    mainLayout->addWidget(hostLineEdit, 0, 1);
-    mainLayout->addWidget(portLabel, 1, 0);
-    mainLayout->addWidget(portLineEdit, 1, 1);
-    mainLayout->addWidget(tempThresLabel, 2, 0);
-    mainLayout->addWidget(tempThresSlider, 2, 1);
-    mainLayout->addWidget(tempThresValueLabel, 2, 2);
-    mainLayout->addWidget(tempLabel, 3, 0, 1, 1);
-    mainLayout->addWidget(buttonBox, 3, 1, 1, 3);
+    mainLayout->addWidget(tempThresLabel, 0, 0);
+    mainLayout->addWidget(tempThresSlider, 0, 1);
+    mainLayout->addWidget(tempThresValueLabel, 0, 2);
+    mainLayout->addWidget(tempLabel, 1, 0, 1, 1);
+    mainLayout->addWidget(buttonBox, 1, 1, 1, 3);
     setLayout(mainLayout);
 
     setWindowTitle(tr(APP_NAME));
-    portLineEdit->setFocus();
 
     QNetworkConfigurationManager manager;
     if (manager.capabilities() & QNetworkConfigurationManager::NetworkSessionRequired) {
@@ -172,11 +150,17 @@ Client::Client(QWidget *parent)
         networkSession->open();
     }
 
+    groupAddr = QHostAddress(MULTICAST_ADDR);
+    udpSocket = new QUdpSocket(this);
+    udpSocket->bind(QHostAddress::AnyIPv4, MULTICAST_PORT, QUdpSocket::ShareAddress);
+    udpSocket->joinMulticastGroup(groupAddr);
+    connect(udpSocket, SIGNAL(readyRead()), this, SLOT(processPendingDatagrams()));
+
     enableButtons();
 
     socketBusy = 0;
     statusTimer = 0;
-    requestStatus();
+    //requestStatus();
 }
 
 
@@ -239,7 +223,7 @@ void Client::sendCmd(int cmd, int *data)
     memcpy(&c.u, data, cmdDataSize[cmd]);
 
     if (!tcpSocket->isValid()) {
-        tcpSocket->connectToHost(hostLineEdit->text(), portLineEdit->text().toInt());
+        tcpSocket->connectToHost(serverAddr->toStdString().c_str(), serverPort);
         if (!tcpSocket->isValid()) {
                 tcpSocket->error(QAbstractSocket::HostNotFoundError);
                 qDebug() << "connectToHost failed";
@@ -386,10 +370,7 @@ void Client::socketError(QAbstractSocket::SocketError error)
 
 void Client::enableButtons()
 {
-    int flag = ((!networkSession || networkSession->isOpen()) &&
-            !hostLineEdit->text().isEmpty() &&
-            !portLineEdit->text().isEmpty());
-
+    int flag = ((!networkSession || networkSession->isOpen()));
      switchButton->setEnabled(flag);
 }
 
@@ -426,5 +407,32 @@ void Client::timerEvent(QTimerEvent *e)
             requestStatus();
 
         e->accept();
+    }
+}
+
+void Client::processPendingDatagrams()
+{
+    while (udpSocket->hasPendingDatagrams()) {
+        QByteArray datagram;
+        datagram.resize(udpSocket->pendingDatagramSize());
+        udpSocket->readDatagram(datagram.data(), datagram.size());
+
+        qDebug() << "multicast:" << datagram.data();
+        QString data = datagram.data();
+        QStringList list = data.split(":");
+
+        QStringList::iterator it = list.begin();
+
+        if (*it != "radiator")
+            continue;
+
+        it++;
+        qDebug() << *it;
+        serverAddr = new QString(*it++);
+        serverPort = it->toInt();
+
+        qDebug() << "radiator" << serverAddr << ":" << serverPort;
+
+        enable();
     }
 }

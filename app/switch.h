@@ -4,6 +4,9 @@
 #define PORT 8998
 #define TEMPTHRES 25
 
+#define MULTICAST_ADDR "239.0.0.1"
+#define MULTICAST_PORT 6000
+
 enum {
     CMD_SET_SW_POS,
     CMD_TOGGLE_MODE,

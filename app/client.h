@@ -43,6 +43,7 @@
 
 #include <QDialog>
 #include <QTcpSocket>
+#include <QHostAddress>
 #include "switch.h"
 
 QT_BEGIN_NAMESPACE
@@ -53,6 +54,7 @@ class QLineEdit;
 class QSlider;
 class QPushButton;
 class QTcpSocket;
+class QUdpSocket;
 class QNetworkSession;
 QT_END_NAMESPACE
 
@@ -68,6 +70,7 @@ private slots:
 
     void socketError(QAbstractSocket::SocketError error);
     void socketStateChanged(QAbstractSocket::SocketState tate);
+    void processPendingDatagrams();
 
     void enable();
     void disable();
@@ -82,12 +85,8 @@ private slots:
     void timerEvent(QTimerEvent *e);
 
 private:
-    QLabel *hostLabel;
-    QLabel *portLabel;
     QLabel *tempThresLabel;
     QLabel *tempThresValueLabel;
-    QLineEdit *hostLineEdit;
-    QLineEdit *portLineEdit;
     QSlider *tempThresSlider;
     QLabel *tempLabel;
     QPushButton *switchButton;
@@ -100,6 +99,12 @@ private:
     int statusTimer;
     struct status status;
     int socketBusy;
+
+    QString *serverAddr;
+    int serverPort;
+
+    QUdpSocket *udpSocket;
+    QHostAddress groupAddr;
 
     QTcpSocket *tcpSocket;
     QNetworkSession *networkSession;

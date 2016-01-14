@@ -2,6 +2,10 @@
 #ifndef SEND_MULTICAST
 #define SEND_MULTICAST
 
-int send_multicast(char *multicast_addr, int port, char *local_addr, char *data);
+#include <sys/types.h>
+#include <sys/socket.h>
+
+char *get_local_ipaddr(char *if_name);
+int send_multicast(char *addr, int port, char *data);
 
 #endif
