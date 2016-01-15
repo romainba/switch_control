@@ -6,6 +6,8 @@
 
 #define MULTICAST_ADDR "239.0.0.1"
 #define MULTICAST_PORT 6000
+#define DISCOVER_MSG "discover"
+#define APP_NAME "radiator"
 
 enum {
     CMD_SET_SW_POS,

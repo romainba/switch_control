@@ -1,7 +1,8 @@
 #CC=mips-openwrt-linux-gcc
 CC=gcc
 
-CFLAGS = -g -O2 -Wall -Wstrict-prototypes -Wno-unused-function -Wno-unused-variable
+CFLAGS = -g -O2 -Wall -Wstrict-prototypes -Wno-unused-function -Wno-unused-variable \
+	-Wimplicit-function-declaration
 CFLAGS += -I ../app
 ifneq ($(CC),gcc)
 	CFLAGS += -DREAL_TARGET
@@ -11,27 +12,26 @@ BIN = server toggle_mode
 
 all: $(BIN)
 
-server: util.o sensor.o send_multicast.o server_switch.o
+SERVER_OBJS = util.o sensor.o discover.o server_switch.o
+TOGGLE_OBJS = util.o toggle_mode.o
+
+OBJS = $(SERVER_OBJS) $(TOGGLE_OBJS)
+
+server: $(SERVER_OBJS)
 	$(CC) -o $@ $^
 
-toggle_mode: util.o toggle_mode.o
+toggle_mode: $(TOGGLE_OBJS)
 	$(CC) -o $@ $^
-
-client: client_switch.o util.o
-	$(CC) -o $@ $^
-
-test: sensor.o test.o
-	$(CC) -o $@ $^
-
-multicast: multicast.o
-	$(CC) -o $@ $^
-
 
 %.o: %.c
-	$(CC) -c -o $@ $< $(CFLAGS)
+	$(CC) $(CFLAGS) $(CPPFLAGS) -c -o $@ $<
+
+CPPFLAGS += -MD -MP
+
+-include $(OBJS:%.o=%.d)
 
 clean:
-	rm -f *.o $(BIN)
+	rm -f *.o $(BIN) $(OBJS:%.o=%.d)
 
 tar:
 	tar cvfz server.tgz *.c *.h Makefile

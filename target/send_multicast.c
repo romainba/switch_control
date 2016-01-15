@@ -83,21 +83,6 @@ int send_multicast(char *addr, int port, char *data)
 	groupSock.sin_addr.s_addr = inet_addr(addr);
 	groupSock.sin_port = htons(port);
 
-#if 0
-	/* Disable loopback so you do not receive your own datagrams. */
-	{
-		char loopch = 0;
-		if(setsockopt(sd, IPPROTO_IP, IP_MULTICAST_LOOP,
-			      (char *)&loopch, sizeof(loopch)) < 0)
-		{
-			ERROR("Setting IP_MULTICAST_LOOP error");
-			close(sd);
-			return 1;
-		}
-		DEBUG("Disabled the loopback");
-	}
-#endif
-
 	/* Set local interface for outbound multicast datagrams.
 	 * The IP address specified must be associated with a local,
 	 * multicast capable interface.

@@ -45,51 +45,40 @@
 #include "client.h"
 #include "switch.h"
 
-#define APP_NAME "Radiateur"
-
 #if 0
 #define ENDIAN QDataStream::BigEndian
 #else
 #define ENDIAN QDataStream::LittleEndian
 #endif
 
-#define STATUSTIMEOUT 5
+#define STATUSTIMEOUT 3
 
 Client::Client(QWidget *parent)
 :   QDialog(parent), networkSession(0)
 {
-    tempThresLabel = new QLabel(tr("Max"));
+    /* send broadcast discover message in order to receive back the IP address
+     * from all the servers.
+     */
 
-#if 0
-    // find out name of this machine
-    QString name = QHostInfo::localHostName();
-    if (!name.isEmpty()) {
-        hostCombo->addItem(name);
-        QString domain = QHostInfo::localDomainName();
-        if (!domain.isEmpty())
-            hostCombo->addItem(name + QChar('.') + domain);
-    }
-    if (name != QString("localhost"))
-        hostCombo->addItem(QString("localhost"));
-    // find out IP addresses of this machine
-    QList<QHostAddress> ipAddressesList = QNetworkInterface::allAddresses();
-    // add non-localhost addresses
-    for (int i = 0; i < ipAddressesList.size(); ++i) {
-        if (!ipAddressesList.at(i).isLoopback())
-            hostCombo->addItem(ipAddressesList.at(i).toString());
-    }
-    // add localhost addresses
-    for (int i = 0; i < ipAddressesList.size(); ++i) {
-        if (ipAddressesList.at(i).isLoopback())
-            hostCombo->addItem(ipAddressesList.at(i).toString());
-    }
-#endif
+    groupAddr = QHostAddress(MULTICAST_ADDR);
+
+    udpSocket = new QUdpSocket(this);
+    udpSocket->bind(QHostAddress::AnyIPv4, MULTICAST_PORT + 1, QUdpSocket::ShareAddress);
+    udpSocket->joinMulticastGroup(groupAddr);
+    connect(udpSocket, SIGNAL(readyRead()), this, SLOT(processPendingDatagrams()));
+
+    sendMulticastMsg("discover");
+
+    /*
+     * Initializing the user interface
+     */
 
     tempThresSlider = new QSlider(Qt::Horizontal, this);
     tempThresSlider->setMinimum(15);
     tempThresSlider->setMaximum(28);
     tempThresSlider->setValue(0);
 
+    tempThresLabel = new QLabel(tr("Max"));
     tempThresLabel->setBuddy(tempThresSlider);
 
     tempLabel = new QLabel(tr("-"));
@@ -97,23 +86,15 @@ Client::Client(QWidget *parent)
     tempThresValueLabel->setBuddy(tempThresSlider);
 
     switchButton = new QPushButton("Switch ON", this);
-    switchButton->setCheckable(true);
+    switchButton->setCheckable(false);
     switchButton->setEnabled(false);
 
     buttonBox = new QDialogButtonBox;
     buttonBox->addButton(switchButton, QDialogButtonBox::ActionRole);
 
-    tcpSocket = new QTcpSocket(this);
-
     connect(tempThresSlider, SIGNAL(valueChanged(int)),
             this, SLOT(tempThresChanged()));
     connect(switchButton, SIGNAL(clicked()), this, SLOT(switchToggled()));
-
-    connect(tcpSocket, SIGNAL(readyRead()), this, SLOT(readResp()));
-    connect(tcpSocket, SIGNAL(error(QAbstractSocket::SocketError)),
-            this, SLOT(socketError(QAbstractSocket::SocketError)));
-    connect(tcpSocket, SIGNAL(stateChanged(QAbstractSocket::SocketState)),
-            this, SLOT(socketStateChanged(QAbstractSocket::SocketState)));
 
     QGridLayout *mainLayout = new QGridLayout;
     mainLayout->addWidget(tempThresLabel, 0, 0);
@@ -125,42 +106,18 @@ Client::Client(QWidget *parent)
 
     setWindowTitle(tr(APP_NAME));
 
-    QNetworkConfigurationManager manager;
-    if (manager.capabilities() & QNetworkConfigurationManager::NetworkSessionRequired) {
-        // Get saved network configuration
-        QSettings settings(QSettings::UserScope, QLatin1String("QtProject"));
-        settings.beginGroup(QLatin1String("QtNetwork"));
-        const QString id = settings.value(QLatin1String("DefaultNetworkConfiguration")).toString();
-        settings.endGroup();
-
-        // If the saved network configuration is not currently discovered use the system default
-        QNetworkConfiguration config = manager.configurationFromIdentifier(id);
-        if ((config.state() & QNetworkConfiguration::Discovered) !=
-            QNetworkConfiguration::Discovered) {
-            config = manager.defaultConfiguration();
-        }
-
-        networkSession = new QNetworkSession(config, this);
-        connect(networkSession, SIGNAL(opened()), this, SLOT(sessionOpened()));
-
-        switchButton->setEnabled(false);
-
-        qDebug() << "Opening network session";
-
-        networkSession->open();
-    }
-
-    groupAddr = QHostAddress(MULTICAST_ADDR);
-    udpSocket = new QUdpSocket(this);
-    udpSocket->bind(QHostAddress::AnyIPv4, MULTICAST_PORT, QUdpSocket::ShareAddress);
-    udpSocket->joinMulticastGroup(groupAddr);
-    connect(udpSocket, SIGNAL(readyRead()), this, SLOT(processPendingDatagrams()));
-
-    enableButtons();
+    /*
+     * Connect socket to the server
+     */
+    tcpSocket = new QTcpSocket(this);
+    connect(tcpSocket, SIGNAL(readyRead()), this, SLOT(readResp()));
+    connect(tcpSocket, SIGNAL(error(QAbstractSocket::SocketError)),
+            this, SLOT(socketError(QAbstractSocket::SocketError)));
+    connect(tcpSocket, SIGNAL(stateChanged(QAbstractSocket::SocketState)),
+            this, SLOT(socketStateChanged(QAbstractSocket::SocketState)));
 
     socketBusy = 0;
     statusTimer = 0;
-    //requestStatus();
 }
 
 
@@ -285,8 +242,6 @@ void Client::readResp()
         break;
     }
     }
-
-    switchButton->setEnabled(true);
 }
 
 void Client::requestStatus()
@@ -313,6 +268,7 @@ void Client::switchToggled()
 void Client::enable()
 {
     statusTimer = startTimer(STATUSTIMEOUT * 1000);
+    switchButton->setEnabled(1);
     qDebug() << "enable";
 }
 
@@ -367,14 +323,7 @@ void Client::socketError(QAbstractSocket::SocketError error)
     }
 }
 
-
-void Client::enableButtons()
-{
-    int flag = ((!networkSession || networkSession->isOpen()));
-     switchButton->setEnabled(flag);
-}
-
-
+#if 0
 void Client::sessionOpened()
 {
     // Save the used configuration
@@ -394,6 +343,7 @@ void Client::sessionOpened()
 
     enableButtons();
 }
+#endif
 
 void Client::timerEvent(QTimerEvent *e)
 {
@@ -410,6 +360,14 @@ void Client::timerEvent(QTimerEvent *e)
     }
 }
 
+void Client::sendMulticastMsg(QByteArray datagram)
+{
+    QUdpSocket *s = new QUdpSocket(this);
+
+    s->writeDatagram(datagram.data(), datagram.size(), groupAddr, MULTICAST_PORT);
+    s->close();
+}
+
 void Client::processPendingDatagrams()
 {
     while (udpSocket->hasPendingDatagrams()) {
@@ -417,22 +375,25 @@ void Client::processPendingDatagrams()
         datagram.resize(udpSocket->pendingDatagramSize());
         udpSocket->readDatagram(datagram.data(), datagram.size());
 
-        qDebug() << "multicast:" << datagram.data();
+        qDebug() << "recv:" << datagram.data();
         QString data = datagram.data();
         QStringList list = data.split(":");
 
         QStringList::iterator it = list.begin();
 
-        if (*it != "radiator")
+        if (*it != "radiator") {
+            qDebug() << "skipped msg";
             continue;
+        }
 
         it++;
-        qDebug() << *it;
         serverAddr = new QString(*it++);
         serverPort = it->toInt();
 
         qDebug() << "radiator" << serverAddr << ":" << serverPort;
 
-        enable();
+        tcpSocket->connectToHost(serverAddr->toStdString().c_str(), serverPort);
+
+        requestStatus();
     }
 }

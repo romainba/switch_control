@@ -17,15 +17,10 @@
 #include "util.h"
 #include <switch.h>
 #include "sensor.h"
-#include "send_multicast.h"
+#include "discover.h"
 
 #define PERIOD_CHECK 30 /* second */
 #define DEFAULT_TEMP (25 * 1000) /* degres */
-
-#define INTERFACE "ens3"
-
-#define MULTICAST_ADDR "239.0.0.1"
-#define MULTICAST_PORT 6000
 
 #define GPIO_SW 7
 
@@ -259,6 +254,16 @@ int main(int argc, char *argv[])
 #endif
 	switch_off(config);
 
+	pid = fork();
+	if (pid < 0) {
+		ERROR("fork failed: %s",  strerror(errno));
+		return 0;
+	} else if (pid == 0) {
+		if (discover_service())
+			ERROR("discover_service failed");
+		return 0;
+	}
+
 	sock = socket(AF_INET, SOCK_STREAM, 0);
 
 	sin.sin_family = AF_INET;
@@ -268,17 +273,6 @@ int main(int argc, char *argv[])
 
 	listen(sock, 5);
 	printf("listening port %d\n", PORT);
-
-	buffer = get_local_ipaddr(INTERFACE);
-	if (buffer) {
-		char buf[200];
-		sprintf(buf, "radiator:%s:%d", buffer, PORT);
-
-		if (send_multicast(MULTICAST_ADDR, MULTICAST_PORT, buf))
-			ERROR("send_multicast failed");
-
-		free(buffer);
-	}
 
 	while (1) {
 

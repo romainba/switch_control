@@ -71,12 +71,11 @@ private slots:
     void socketError(QAbstractSocket::SocketError error);
     void socketStateChanged(QAbstractSocket::SocketState tate);
     void processPendingDatagrams();
+    void sendMulticastMsg(QByteArray datagram);
 
     void enable();
     void disable();
 
-    void enableButtons();
-    void sessionOpened();
     void requestStatus();
     void switchToggled();
     void tempThresChanged();
