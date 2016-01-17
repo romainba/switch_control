@@ -4,8 +4,8 @@
 #define PORT 8998
 #define TEMPTHRES 25
 
-#define MULTICAST_ADDR "239.0.0.1"
-#define MULTICAST_PORT 6000
+#define MULTICAST_ADDR "239.255.255.250"
+#define MULTICAST_PORT 1602
 #define DISCOVER_MSG "discover"
 #define APP_NAME "radiator"
 

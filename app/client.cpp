@@ -45,7 +45,7 @@
 #include "client.h"
 #include "switch.h"
 
-#if 0
+#if 1
 #define ENDIAN QDataStream::BigEndian
 #else
 #define ENDIAN QDataStream::LittleEndian
@@ -56,7 +56,8 @@
 Client::Client(QWidget *parent)
 :   QDialog(parent), networkSession(0)
 {
-    /* send broadcast discover message in order to receive back the IP address
+    /*
+     * Send broadcast discover message in order to receive back the IP address
      * from all the servers.
      */
 
@@ -68,6 +69,7 @@ Client::Client(QWidget *parent)
     connect(udpSocket, SIGNAL(readyRead()), this, SLOT(processPendingDatagrams()));
 
     sendMulticastMsg("discover");
+    qDebug() << "send discover, waiting answer";
 
     /*
      * Initializing the user interface

@@ -223,7 +223,7 @@ static int handle_sess(int s, struct config *config)
 
 int main(int argc, char *argv[])
 {
-	int sock, s, ret, pid, status, shmid;
+	int sock, s, ret, pid, discover_pid, status, shmid;
 	struct sockaddr_in sin;
 	struct in_addr in_addr;
 	struct config *config;
@@ -254,12 +254,15 @@ int main(int argc, char *argv[])
 #endif
 	switch_off(config);
 
+	/* start discover service */
 	pid = fork();
 	if (pid < 0) {
 		ERROR("fork failed: %s",  strerror(errno));
 		return 0;
 	} else if (pid == 0) {
-		if (discover_service())
+		char *if_name = (argc > 1) ? argv[1] : "wlan0";
+
+		if (discover_service(if_name))
 			ERROR("discover_service failed");
 		return 0;
 	}
@@ -309,6 +312,17 @@ int main(int argc, char *argv[])
 	}
 
 	close(sock);
+
+	while (1) {
+		pid = waitpid(-1, &status, WNOHANG);
+		if (pid < 0) {
+			ERROR("waitpid: %s",  strerror(errno));
+			break;
+		} else if (pid == 0)
+			break;
+		DEBUG("proc %d ended", pid);
+	}
+
 	if (shmdt(config))
 		ERROR("shmdt failed: %s", strerror(errno));
 
