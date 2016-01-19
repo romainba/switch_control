@@ -84,13 +84,13 @@ static inline int get_temp(struct config *config)
 static int handle_sess(int s, struct config *config)
 {
 	int request = REQ_NONE;
-	struct pollfd fds = { .fd = s, .events = POLLIN };
+	struct pollfd fds = { .fd = s, .events = POLLIN | POLLERR };
 	struct resp resp;
 	struct cmd cmd;
 	int ret, v;
 
 	while (1) {
-		ret = poll(&fds, 1, 500);
+		ret = poll(&fds, 1, 1000);
 		if (ret < 0) {
 			ERROR("poll error %s", strerror(errno));
 			break;

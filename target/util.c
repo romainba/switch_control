@@ -26,11 +26,9 @@ int file_exists(char *file)
 void gpio_conf(int gpio)
 {
 	char str[50];
+
 	sprintf(str, "echo %d > /sys/class/gpio/export", gpio);
-	if (!file_exists(str) && system(str)) {
-		ERROR("system %s failed", str);
-		return;
-	}
+	system(str);
 
 	sprintf(str, "echo out > /sys/class/gpio/gpio%d/direction", gpio);
 	if (system(str))

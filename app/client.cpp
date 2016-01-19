@@ -45,13 +45,13 @@
 #include "client.h"
 #include "switch.h"
 
-#if 0
+#if 1
 #define ENDIAN QDataStream::BigEndian
 #else
 #define ENDIAN QDataStream::LittleEndian
 #endif
 
-#define STATUSTIMEOUT 3
+#define STATUSTIMEOUT 5
 
 Client::Client(QWidget *parent)
 :   QDialog(parent), networkSession(0)
@@ -106,6 +106,9 @@ Client::Client(QWidget *parent)
     mainLayout->addWidget(buttonBox, 1, 1, 1, 3);
     setLayout(mainLayout);
 
+    qDebug() << QDesktopWidget().availableGeometry(this).size();
+    resize(QDesktopWidget().availableGeometry(this).size());
+
     setWindowTitle(tr(APP_NAME));
 
     /*
@@ -118,7 +121,6 @@ Client::Client(QWidget *parent)
     connect(tcpSocket, SIGNAL(stateChanged(QAbstractSocket::SocketState)),
             this, SLOT(socketStateChanged(QAbstractSocket::SocketState)));
 
-    socketBusy = 0;
     statusTimer = 0;
 }
 
@@ -163,18 +165,10 @@ static int respDataSize[CMD_NUM] = {
 
 void Client::sendCmd(int cmd, int *data)
 {
-    int cnt = 0;
-    QThread *thread = QThread::currentThread();
+    // QThread *thread = QThread::currentThread();
 
     if (cmd >= CMD_NUM)
         return;
-
-    while (socketBusy) {
-        if (cnt++ % 5)
-            qDebug() << "busy";
-        thread->msleep(100);
-    }
-    socketBusy = 1;
 
     struct cmd c;
     c.header.id = cmd;
@@ -194,7 +188,6 @@ void Client::sendCmd(int cmd, int *data)
     out.setByteOrder(ENDIAN);
 
     out << c;
-
     if (cmdDataSize[cmd])
         qDebug() << "sendCmd" << cmd << "len" << cmdDataSize[cmd] << "data" << data[0];
     else
@@ -203,14 +196,16 @@ void Client::sendCmd(int cmd, int *data)
 
 void Client::readResp()
 {
+    qDebug() << "readReady" << tcpSocket->bytesAvailable();
+
+    if (tcpSocket->bytesAvailable() < (int)(sizeof(struct resp_header)))
+        return;
+
     QDataStream in(tcpSocket);
     struct resp resp;
 
     in.setVersion(QDataStream::Qt_4_0);
     in.setByteOrder(ENDIAN);
-
-    if (tcpSocket->bytesAvailable() < (int)(sizeof(struct resp_header)))
-        return;
 
     in >> resp.header;
 
@@ -222,7 +217,6 @@ void Client::readResp()
         return;
 
     in >> resp;
-    socketBusy = 0;
 
     if (resp.header.len != respDataSize[resp.header.id]) {
         qDebug() << "Cmd" << resp.header.id << "with invalid len " << resp.header.len;
@@ -236,7 +230,7 @@ void Client::readResp()
         memcpy(&status, s, sizeof(struct status));
 
         QString str = s->sw_pos ? "ON" : "OFF";
-        tempLabel->setText( str + " " + QString::number(s->temp / 1000.0) + "°C");
+        tempLabel->setText( str + " " + QString::number(s->temp / 1000.0, 'f', 1) + "°C");
 
         tempThresSlider->setValue(s->tempThres/1000.0);
         qDebug() << "  temp" << s->temp / 1000.0 << "thres" << s->tempThres / 1000.0;
@@ -249,6 +243,7 @@ void Client::readResp()
         break;
     }
     }
+
 }
 
 void Client::requestStatus()
@@ -398,7 +393,7 @@ void Client::processPendingDatagrams()
         serverAddr = new QString(*it++);
         serverPort = it->toInt();
 
-        qDebug() << "radiator" << serverAddr << ":" << serverPort;
+        qDebug() << "radiator" << serverAddr->toStdString().c_str() << ":" << serverPort;
 
         tcpSocket->connectToHost(serverAddr->toStdString().c_str(), serverPort);
     }

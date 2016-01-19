@@ -97,7 +97,6 @@ private:
 
     int statusTimer;
     struct status status;
-    int socketBusy;
 
     QString *serverAddr;
     int serverPort;
