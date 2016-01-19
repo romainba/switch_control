@@ -10,7 +10,6 @@
 #include <errno.h>
 #include <sys/types.h>
 #include <sys/wait.h>
-#include <sys/stat.h>
 #include <sys/shm.h>
 #include <poll.h>
 
@@ -32,72 +31,15 @@
 
 struct config {
 	char dev[20];
-	int req;
+	int requested;
 	int active;
 	int temp;
 };
 
+enum { REQ_NONE, REQ_ON, REQ_OFF };
+
 #define SHM_KEY 0x1235
 
-static int file_exists(char *file)
-{
-	struct stat s;
-	int err = stat(file, &s);
-	if(err < 0) {
-		if(errno == ENOENT) {
-			return 0;
-		} else {
-			ERROR("stat %s", strerror(errno));
-			return -1;
-		}
-	}
-	return 1; /* S_ISDIR(s.st_mode) */
-}
-
-static void gpio_conf(int gpio)
-{
-	char str[50];
-	sprintf(str, "echo %d > /sys/class/gpio/export", gpio);
-	if (!file_exists(str))
-		system(str);
-
-	sprintf(str, "echo out > /sys/class/gpio/gpio%d/direction", gpio);
-	system(str);
-}
-
-static void gpio_set(int gpio, int value)
-{
-	char str[50];
-	sprintf(str, "echo %d > /sys/class/gpio/gpio%d/value", value, gpio);
-	system(str);
-}
-
-static void led_set(char *led, int value)
-{
-	char str[50];
-	sprintf(str, "echo %d > /sys/class/leds/%s/brightness", value, led);
-	system(str);
-}
-
-static int led_get(char *led)
-{
-	FILE *pipe;
-	char str[50], buf[20];
-	int ret;
-
-	sprintf(str, "cat /sys/class/leds/%s/brightness", led);
-	pipe = popen(str, "r");
-	ret = fread(buf, 1, sizeof(buf), pipe);
-	if (ret < 0) {
-		ERROR("%s fread failed: %s", strerror(errno));
-		return -1;
-	} else if (ret == 0) {
-		ERROR("%s fread empty");
-		return -1;
-	}
-	pclose(pipe);
-	return atoi(buf);
-}
 
 static inline void switch_off(struct config *config)
 {
@@ -141,11 +83,11 @@ static inline int get_temp(struct config *config)
 
 static int handle_sess(int s, struct config *config)
 {
-	int new_req = 0;
+	int request = REQ_NONE;
 	struct pollfd fds = { .fd = s, .events = POLLIN };
 	struct resp resp;
 	struct cmd cmd;
-	int ret, sw_on;
+	int ret, v;
 
 	while (1) {
 		ret = poll(&fds, 1, 500);
@@ -154,11 +96,17 @@ static int handle_sess(int s, struct config *config)
 			break;
 		} else if (ret == 0) {
 			/* timeout */
-			if (new_req != config->req) {
-				config->req = new_req;
-				DEBUG("req %d\n", new_req);
+
+			if (request) {
+				v = (request == REQ_ON);
+				request = REQ_NONE;
+				if (v != config->requested) {
+					config->requested = v;
+					DEBUG("pid %d req %d\n", getpid(), v);
+				}
 			}
-			if (config->req) {
+
+			if (config->requested) {
 				if (get_temp(config) > config->temp)
 					switch_off(config);
 				else
@@ -184,7 +132,7 @@ static int handle_sess(int s, struct config *config)
 
 		switch (cmd.header.id) {
 		case CMD_SET_SW_POS:
-			new_req = cmd.u.sw_pos; /* 0 off, 1 on */
+			request = cmd.u.sw_pos /* 0 off, 1 on */ ? REQ_ON : REQ_OFF;
 			break;
 		case CMD_GET_STATUS: {
 			int temp = get_temp(config);
@@ -192,13 +140,13 @@ static int handle_sess(int s, struct config *config)
 			resp.header.len = sizeof(struct status);
 			resp.u.status.temp = temp;
 			resp.u.status.tempThres = config->temp;
-			resp.u.status.sw_pos = config->req;
+			resp.u.status.sw_pos = config->requested;
 			DEBUG("temp %d.%d", temp/1000, temp % 1000);
 			break;
 		}
 		case CMD_TOGGLE_MODE:
 			DEBUG("toggle");
-			new_req = !config->req;
+			request = config->requested ? REQ_OFF : REQ_ON;
 			break;
 		case CMD_SET_TEMP:
 			DEBUG("set_temp %d", cmd.u.temp);
@@ -219,8 +167,6 @@ static int handle_sess(int s, struct config *config)
 	return 0;
 }
 
-
-
 int main(int argc, char *argv[])
 {
 	int sock, s, ret, pid, discover_pid, status, shmid;
@@ -229,6 +175,19 @@ int main(int argc, char *argv[])
 	struct config *config;
 	char *buffer;
 
+	/* start discover service */
+	pid = fork();
+	if (pid < 0) {
+		ERROR("fork failed: %s",  strerror(errno));
+		return 0;
+	} else if (pid == 0) {
+		char *if_name = (argc > 1) ? argv[1] : "wlan0";
+
+		if (discover_service(if_name))
+			ERROR("discover_service failed");
+		return 0;
+	}
+
 	/* shared memory between all child processes */
 	shmid = shmget(SHM_KEY, sizeof(struct config), 0644 | IPC_CREAT);
 	if (shmid < 0) {
@@ -236,7 +195,7 @@ int main(int argc, char *argv[])
 		return 0;
 	}
 
-	config = shmat(shmid, (void *)0, 0);
+	config = shmat(shmid, NULL, 0);
 	if (config == (void *)(-1)) {
 		ERROR("shmat failed");
 		return 0;
@@ -253,19 +212,6 @@ int main(int argc, char *argv[])
 	gpio_conf(GPIO_SW);
 #endif
 	switch_off(config);
-
-	/* start discover service */
-	pid = fork();
-	if (pid < 0) {
-		ERROR("fork failed: %s",  strerror(errno));
-		return 0;
-	} else if (pid == 0) {
-		char *if_name = (argc > 1) ? argv[1] : "wlan0";
-
-		if (discover_service(if_name))
-			ERROR("discover_service failed");
-		return 0;
-	}
 
 	sock = socket(AF_INET, SOCK_STREAM, 0);
 

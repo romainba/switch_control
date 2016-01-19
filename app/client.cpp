@@ -45,7 +45,7 @@
 #include "client.h"
 #include "switch.h"
 
-#if 1
+#if 0
 #define ENDIAN QDataStream::BigEndian
 #else
 #define ENDIAN QDataStream::LittleEndian
@@ -241,6 +241,11 @@ void Client::readResp()
         tempThresSlider->setValue(s->tempThres/1000.0);
         qDebug() << "  temp" << s->temp / 1000.0 << "thres" << s->tempThres / 1000.0;
         switchButton->setText(s->sw_pos ? "Switch OFF" : "Switch ON");
+
+        if (!switchButton->isEnabled()) {
+                qDebug() << "enabled with switch" << s->sw_pos;
+                enable();
+        }
         break;
     }
     }
@@ -294,7 +299,7 @@ void Client::socketStateChanged(QAbstractSocket::SocketState state)
         disable();
         break;
     case QAbstractSocket::ConnectedState:
-        enable();
+        requestStatus();
         break;
     default:
         break;
@@ -303,6 +308,7 @@ void Client::socketStateChanged(QAbstractSocket::SocketState state)
 
 void Client::socketError(QAbstractSocket::SocketError error)
 {
+    qDebug() << "socketerror" << error;
     switch (error) {
     case QAbstractSocket::RemoteHostClosedError:
         break;
@@ -395,7 +401,5 @@ void Client::processPendingDatagrams()
         qDebug() << "radiator" << serverAddr << ":" << serverPort;
 
         tcpSocket->connectToHost(serverAddr->toStdString().c_str(), serverPort);
-
-        requestStatus();
     }
 }
