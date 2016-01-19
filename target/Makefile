@@ -8,19 +8,23 @@ ifneq ($(CC),gcc)
 	CFLAGS += -DREAL_TARGET
 endif
 
-BIN = server toggle_mode
+BIN = server toggle_mode index.cgi
 
 all: $(BIN)
 
 SERVER_OBJS = util.o sensor.o discover.o server_switch.o
 TOGGLE_OBJS = util.o toggle_mode.o
+INDEX_OBJS = sensor.o index.o
 
-OBJS = $(SERVER_OBJS) $(TOGGLE_OBJS)
+OBJS = $(SERVER_OBJS) $(TOGGLE_OBJS) $(INDEX_OBJS)
 
 server: $(SERVER_OBJS)
 	$(CC) -o $@ $^
 
 toggle_mode: $(TOGGLE_OBJS)
+	$(CC) -o $@ $^
+
+index.cgi: $(INDEX_OBJS)
 	$(CC) -o $@ $^
 
 %.o: %.c
