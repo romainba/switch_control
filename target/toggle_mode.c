@@ -33,19 +33,19 @@ int main(int argc, char *argv[])
 	cmd.header.id = CMD_TOGGLE_MODE;
 	cmd.header.len = 0;
 
-	ret = write(sock, &cmd, sizeof(struct cmd));
+	ret = write(sock, &cmd, sizeof(struct cmd_header));
 	if (ret < 0) {
 		ERROR("write error %s", strerror(errno));
 		return 0;
 	}
 
-	ret = read(sock, &resp, sizeof(struct resp));
+	ret = read(sock, &resp, sizeof(struct resp_header));
 	if (ret < 0) {
 		ERROR("read error %s", strerror(errno));
 		return 0;
 	}
 
-	//DEBUG("resp cmd %d status %d", resp.header.id, resp.header.status);
+	DEBUG("resp cmd %d status %d", resp.header.id, resp.header.status);
 
 	close(sock);
 	return 0;

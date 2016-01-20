@@ -81,13 +81,33 @@ static inline int get_temp(struct config *config)
 	return temp;
 }
 
+static void update_switch(struct config *config, int request)
+{
+	if (request) {
+		int v = (request == REQ_ON);
+		request = REQ_NONE;
+		if (v != config->requested) {
+			config->requested = v;
+			DEBUG("pid %d req %d\n", getpid(), v);
+		}
+	}
+
+	if (config->requested) {
+		if (get_temp(config) > config->temp)
+			switch_off(config);
+		else
+			switch_on(config);
+	} else
+		switch_off(config);
+}
+
 static int handle_sess(int s, struct config *config)
 {
 	int request = REQ_NONE;
 	struct pollfd fds = { .fd = s, .events = POLLIN | POLLERR };
 	struct resp resp;
 	struct cmd cmd;
-	int ret, v;
+	int ret;
 
 	while (1) {
 		ret = poll(&fds, 1, 1000);
@@ -96,23 +116,7 @@ static int handle_sess(int s, struct config *config)
 			break;
 		} else if (ret == 0) {
 			/* timeout */
-
-			if (request) {
-				v = (request == REQ_ON);
-				request = REQ_NONE;
-				if (v != config->requested) {
-					config->requested = v;
-					DEBUG("pid %d req %d\n", getpid(), v);
-				}
-			}
-
-			if (config->requested) {
-				if (get_temp(config) > config->temp)
-					switch_off(config);
-				else
-					switch_on(config);
-			} else
-				switch_off(config);
+			update_switch(config, request);
 			continue;
 		}
 
@@ -161,7 +165,11 @@ static int handle_sess(int s, struct config *config)
 			ERROR("write error %s", strerror(errno));
 			break;
 		}
-		DEBUG("send cmd %d len %d\n", resp.header.id, resp.header.len);
+
+		update_switch(config, request);
+
+		DEBUG("send resp %d len %d, request %d\n", resp.header.id, resp.header.len,
+			request);
 	}
 	close(s);
 	return 0;
