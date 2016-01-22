@@ -12,6 +12,7 @@
 #include <sys/wait.h>
 #include <sys/shm.h>
 #include <poll.h>
+#include <signal.h>
 
 #include "util.h"
 #include <switch.h>
@@ -32,8 +33,9 @@
 struct config {
 	char dev[20];
 	int requested;
-	int active;
 	int temp;
+	int active;
+	int switch_pid;
 };
 
 enum { REQ_NONE, REQ_ON, REQ_OFF };
@@ -85,11 +87,8 @@ static void update_switch(struct config *config, int request)
 {
 	if (request) {
 		int v = (request == REQ_ON);
-		request = REQ_NONE;
-		if (v != config->requested) {
+		if (v != config->requested)
 			config->requested = v;
-			DEBUG("pid %d req %d\n", getpid(), v);
-		}
 	}
 
 	if (config->requested) {
@@ -101,23 +100,51 @@ static void update_switch(struct config *config, int request)
 		switch_off(config);
 }
 
+static int proc_switch(struct config *config)
+{
+	int ret;
+	struct timespec timeout = { .tv_nsec = 1, .tv_nsec = 0 };
+	sigset_t waitset;
+	siginfo_t info;
+
+	sigemptyset(&waitset);
+	sigaddset(&waitset, SIGUSR1);
+
+	ret = fork();
+	if (ret)
+		return ret;
+
+	config->active = 1;
+	switch_off(config);
+
+	while (1) {
+		if (sigtimedwait(&waitset, &info, &timeout) < 0) {
+			if (errno == EAGAIN) {
+				DEBUG("%s timeout", __func__);
+				update_switch(config, 0);
+				continue;
+			} else
+				break;
+		}
+		update_switch(config, info.si_value.sival_int);
+	}
+	DEBUG("%s done");
+	return 0;
+}
+
 static int handle_sess(int s, struct config *config)
 {
-	int request = REQ_NONE;
 	struct pollfd fds = { .fd = s, .events = POLLIN | POLLERR };
 	struct resp resp;
 	struct cmd cmd;
-	int ret;
+	int ret, request;
+	union sigval sv;
 
 	while (1) {
-		ret = poll(&fds, 1, 1000);
+		ret = poll(&fds, 1, -1);
 		if (ret < 0) {
 			ERROR("poll error %s", strerror(errno));
 			break;
-		} else if (ret == 0) {
-			/* timeout */
-			update_switch(config, request);
-			continue;
 		}
 
 		ret = read(s, &cmd, sizeof(struct cmd));
@@ -133,6 +160,8 @@ static int handle_sess(int s, struct config *config)
 		resp.header.id = cmd.header.id;
 		resp.header.status = STATUS_OK;
 		resp.header.len = 0;
+
+		request = REQ_NONE;
 
 		switch (cmd.header.id) {
 		case CMD_SET_SW_POS:
@@ -166,7 +195,9 @@ static int handle_sess(int s, struct config *config)
 			break;
 		}
 
-		update_switch(config, request);
+		sv.sival_int = request;
+		if (sigqueue(config->switch_pid, SIGUSR1, sv))
+			ERROR("sigqueue error %s", strerror(errno));
 
 		DEBUG("send resp %d len %d, request %d\n", resp.header.id, resp.header.len,
 			request);
@@ -184,29 +215,24 @@ int main(int argc, char *argv[])
 	char *buffer;
 
 	/* start discover service */
-	pid = fork();
-	if (pid < 0) {
-		ERROR("fork failed: %s",  strerror(errno));
-		return 0;
-	} else if (pid == 0) {
-		char *if_name = (argc > 1) ? argv[1] : "wlan0";
+	char *if_name = (argc > 1) ? argv[1] : "wlan0";
 
-		if (discover_service(if_name))
-			ERROR("discover_service failed");
-		return 0;
+	if (discover_service(if_name)) {
+		ERROR("discover_service failed");
+		exit(1);
 	}
 
 	/* shared memory between all child processes */
 	shmid = shmget(SHM_KEY, sizeof(struct config), 0644 | IPC_CREAT);
 	if (shmid < 0) {
 		ERROR("shmget failed: %s", strerror(errno));
-		return 0;
+		exit(1);
 	}
 
 	config = shmat(shmid, NULL, 0);
 	if (config == (void *)(-1)) {
 		ERROR("shmat failed");
-		return 0;
+		exit(1);
 	}
 
 	memset(config, 0, sizeof(struct config));
@@ -215,11 +241,15 @@ int main(int argc, char *argv[])
 #ifdef REAL_TARGET
 	if (ds1820_search(config->dev)) {
 		ERROR("Did not find any sensor");
-		return 0;
+		exit(1);
 	}
 	gpio_conf(GPIO_SW);
 #endif
-	switch_off(config);
+
+	if (proc_switch(config)) {
+		ERROR("proc_switch failed");
+		exit(1);
+	}
 
 	sock = socket(AF_INET, SOCK_STREAM, 0);
 

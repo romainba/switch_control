@@ -94,10 +94,14 @@ static int send_multicast(char *addr, int port, char *msg, int len)
 int discover_service(char *if_name)
 {
 	char *buffer, buf[100], msg[50];
-	int sock, s, cnt;
+	int ret, sock, s, cnt;
 	unsigned int sin_len;
 	struct sockaddr_in sin;
 	struct ip_mreq mreq;
+
+	ret = fork();
+	if (ret)
+		return ret;
 
 	buffer = get_local_ipaddr(if_name);
 	if (!buffer) {
