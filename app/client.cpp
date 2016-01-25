@@ -71,7 +71,7 @@ Client::Client(QWidget *parent)
     connect(udpSocket, SIGNAL(readyRead()), this, SLOT(processPendingDatagrams()));
 
     sendMulticastMsg("discover");
-    qDebug() << "send discover, waiting answer";
+    qDebug() << "sent discover, waiting answer";
 
     /*
      * Initializing the user interface
@@ -278,6 +278,7 @@ void Client::switchToggled()
 
 void Client::enable()
 {
+    requestStatus();
     statusTimer = startTimer(STATUSTIMEOUT * 1000);
     switchButton->setEnabled(1);
     qDebug() << "enable";
@@ -297,14 +298,20 @@ void Client::disable()
 
 void Client::socketStateChanged(QAbstractSocket::SocketState state)
 {
-    qDebug() << "tcpSocket state" << state;
+    qDebug() << "tcpSocket" << state;
     switch (state) {
     case QAbstractSocket::UnconnectedState:
         tcpSocket->abort();
-        disable();
+        tcpSocket->close();
+
+        delay(1000);
+
+        qDebug() << "reconnecting";
+        tcpSocket->connectToHost(serverAddr->toStdString().c_str(), serverPort);
         break;
+
     case QAbstractSocket::ConnectedState:
-        requestStatus();
+        enable();
         break;
     default:
         break;
@@ -336,9 +343,9 @@ void Client::socketError(QAbstractSocket::SocketError error)
     }
     tcpSocket->abort();
     tcpSocket->close();
-    //this->logger.log(LogLevel::DEBUG, "Reconnecting...");
-    qDebug() << "reconnecting";
+
     delay(1000);
+    qDebug() << "reconnecting";
     tcpSocket->connectToHost(serverAddr->toStdString().c_str(), serverPort);
 }
 
@@ -383,12 +390,16 @@ void Client::sendMulticastMsg(QByteArray datagram)
 {
     QUdpSocket *s = new QUdpSocket(this);
 
+    s->setSocketOption(QAbstractSocket::MulticastTtlOption, 2);
+
     s->writeDatagram(datagram.data(), datagram.size(), groupAddr, MULTICAST_PORT);
+    qDebug() << "sent multicast" << groupAddr << "port" << MULTICAST_PORT;
     s->close();
 }
 
 void Client::processPendingDatagrams()
 {
+    qDebug() << "upd recv msg";
     if (tcpSocket->state() != QAbstractSocket::UnconnectedState) {
             qDebug() << "skip udp msg";
             return;
