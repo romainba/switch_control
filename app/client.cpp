@@ -41,7 +41,9 @@
 #include <QtWidgets>
 #include <QtNetwork>
 #include <QDataStream>
+#include <QTime>
 
+//#include "systemutil.h"
 #include "client.h"
 #include "switch.h"
 
@@ -163,6 +165,15 @@ static int respDataSize[CMD_NUM] = {
     [CMD_GET_STATUS] = sizeof(struct status)
 };
 
+void delay( int millisecondsToWait )
+{
+    QTime dieTime = QTime::currentTime().addMSecs( millisecondsToWait );
+    while( QTime::currentTime() < dieTime )
+    {
+        QCoreApplication::processEvents( QEventLoop::AllEvents, 100 );
+    }
+}
+
 void Client::sendCmd(int cmd, int *data)
 {
     // QThread *thread = QThread::currentThread();
@@ -170,19 +181,17 @@ void Client::sendCmd(int cmd, int *data)
     if (cmd >= CMD_NUM)
         return;
 
+    //qDebug() << "sendCmd tcpSocket state" << tcpSocket->state();
+    //if (!tcpSocket->state() == QAbstractSocket::UnconnectedState) {
+    //    qDebug() << "connecting";
+    //    tcpSocket->connectToHost(serverAddr->toStdString().c_str(), serverPort);
+    //    return;
+    //}
+
     struct cmd c;
     c.header.id = cmd;
     c.header.len = cmdDataSize[cmd];
     memcpy(&c.u, data, cmdDataSize[cmd]);
-
-    if (!tcpSocket->isValid()) {
-        tcpSocket->connectToHost(serverAddr->toStdString().c_str(), serverPort);
-        if (!tcpSocket->isValid()) {
-                tcpSocket->error(QAbstractSocket::HostNotFoundError);
-                qDebug() << "connectToHost failed";
-                return;
-        }
-    }
 
     QDataStream out(tcpSocket);
     out.setByteOrder(ENDIAN);
@@ -288,6 +297,7 @@ void Client::disable()
 
 void Client::socketStateChanged(QAbstractSocket::SocketState state)
 {
+    qDebug() << "tcpSocket state" << state;
     switch (state) {
     case QAbstractSocket::UnconnectedState:
         tcpSocket->abort();
@@ -324,6 +334,12 @@ void Client::socketError(QAbstractSocket::SocketError error)
                                  tr("The following error occurred: %1.")
                                  .arg(tcpSocket->errorString()));
     }
+    tcpSocket->abort();
+    tcpSocket->close();
+    //this->logger.log(LogLevel::DEBUG, "Reconnecting...");
+    qDebug() << "reconnecting";
+    delay(1000);
+    tcpSocket->connectToHost(serverAddr->toStdString().c_str(), serverPort);
 }
 
 #if 0
@@ -373,6 +389,11 @@ void Client::sendMulticastMsg(QByteArray datagram)
 
 void Client::processPendingDatagrams()
 {
+    if (tcpSocket->state() != QAbstractSocket::UnconnectedState) {
+            qDebug() << "skip udp msg";
+            return;
+    }
+
     while (udpSocket->hasPendingDatagrams()) {
         QByteArray datagram;
         datagram.resize(udpSocket->pendingDatagramSize());
@@ -396,5 +417,7 @@ void Client::processPendingDatagrams()
         qDebug() << "radiator" << serverAddr->toStdString().c_str() << ":" << serverPort;
 
         tcpSocket->connectToHost(serverAddr->toStdString().c_str(), serverPort);
+
+        break;
     }
 }

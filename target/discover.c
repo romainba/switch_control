@@ -99,10 +99,6 @@ int discover_service(char *if_name)
 	struct sockaddr_in sin;
 	struct ip_mreq mreq;
 
-	ret = fork();
-	if (ret)
-		return ret;
-
 	buffer = get_local_ipaddr(if_name);
 	if (!buffer) {
 		DEBUG("%s interface not found", if_name);

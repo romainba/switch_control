@@ -34,13 +34,14 @@ struct config {
 	char dev[20];
 	int requested;
 	int temp;
+	int temp_thres;
 	int active;
 	int switch_pid;
 };
 
 enum { REQ_NONE, REQ_ON, REQ_OFF };
 
-#define SHM_KEY 0x1235
+#define SHM_KEY 0x1234
 
 
 static inline void switch_off(struct config *config)
@@ -91,8 +92,10 @@ static void update_switch(struct config *config, int request)
 			config->requested = v;
 	}
 
+	config->temp = get_temp(config);
+
 	if (config->requested) {
-		if (get_temp(config) > config->temp)
+		if (config->temp > config->temp_thres)
 			switch_off(config);
 		else
 			switch_on(config);
@@ -103,24 +106,26 @@ static void update_switch(struct config *config, int request)
 static int proc_switch(struct config *config)
 {
 	int ret;
-	struct timespec timeout = { .tv_nsec = 1, .tv_nsec = 0 };
+	struct timespec timeout = { .tv_sec = 10, .tv_nsec = 0 };
 	sigset_t waitset;
 	siginfo_t info;
 
 	sigemptyset(&waitset);
 	sigaddset(&waitset, SIGUSR1);
 
-	ret = fork();
-	if (ret)
-		return ret;
-
+#ifdef REAL_TARGET
+	gpio_conf(GPIO_SW);
+#endif
 	config->active = 1;
 	switch_off(config);
 
+	if (sigprocmask(SIG_SETMASK, &waitset, NULL) < 0)
+		exit(1);
+
 	while (1) {
-		if (sigtimedwait(&waitset, &info, &timeout) < 0) {
+		ret = sigtimedwait(&waitset, &info, &timeout);
+		if (ret < 0) {
 			if (errno == EAGAIN) {
-				DEBUG("%s timeout", __func__);
 				update_switch(config, 0);
 				continue;
 			} else
@@ -128,7 +133,7 @@ static int proc_switch(struct config *config)
 		}
 		update_switch(config, info.si_value.sival_int);
 	}
-	DEBUG("%s done");
+	DEBUG("%s done", __func__);
 	return 0;
 }
 
@@ -168,13 +173,10 @@ static int handle_sess(int s, struct config *config)
 			request = cmd.u.sw_pos /* 0 off, 1 on */ ? REQ_ON : REQ_OFF;
 			break;
 		case CMD_GET_STATUS: {
-			int temp = get_temp(config);
-
 			resp.header.len = sizeof(struct status);
-			resp.u.status.temp = temp;
-			resp.u.status.tempThres = config->temp;
+			resp.u.status.temp = config->temp;
+			resp.u.status.tempThres = config->temp_thres;
 			resp.u.status.sw_pos = config->requested;
-			DEBUG("temp %d.%d", temp/1000, temp % 1000);
 			break;
 		}
 		case CMD_TOGGLE_MODE:
@@ -182,8 +184,8 @@ static int handle_sess(int s, struct config *config)
 			request = config->requested ? REQ_OFF : REQ_ON;
 			break;
 		case CMD_SET_TEMP:
-			DEBUG("set_temp %d", cmd.u.temp);
-			config->temp = cmd.u.temp;
+			DEBUG("set temp_thres %d", cmd.u.temp);
+			config->temp_thres = cmd.u.temp;
 			break;
 		default:
 			resp.header.status = STATUS_CMD_INVALID;
@@ -208,48 +210,60 @@ static int handle_sess(int s, struct config *config)
 
 int main(int argc, char *argv[])
 {
-	int sock, s, ret, pid, discover_pid, status, shmid;
+	int sock, s, ret, pid, discover_pid = 0, status, shmid;
 	struct sockaddr_in sin;
 	struct in_addr in_addr;
-	struct config *config;
+	struct config *config = NULL;
 	char *buffer;
 
 	/* start discover service */
-	char *if_name = (argc > 1) ? argv[1] : "wlan0";
-
-	if (discover_service(if_name)) {
-		ERROR("discover_service failed");
+	ret = fork();
+	if (ret < 0)
 		exit(1);
+	if (ret == 0) {
+		char *if_name = (argc > 1) ? argv[1] : "wlan0";
+		if (discover_service(if_name)) {
+			ERROR("discover_service failed");
+			exit(1);
+		}
+		exit(0);
 	}
+	discover_pid = ret;
 
 	/* shared memory between all child processes */
 	shmid = shmget(SHM_KEY, sizeof(struct config), 0644 | IPC_CREAT);
 	if (shmid < 0) {
 		ERROR("shmget failed: %s", strerror(errno));
-		exit(1);
+		goto error;
 	}
 
 	config = shmat(shmid, NULL, 0);
 	if (config == (void *)(-1)) {
 		ERROR("shmat failed");
-		exit(1);
+		goto error;
 	}
 
 	memset(config, 0, sizeof(struct config));
-	config->temp = DEFAULT_TEMP;
+	config->temp_thres = DEFAULT_TEMP;
 
 #ifdef REAL_TARGET
 	if (ds1820_search(config->dev)) {
 		ERROR("Did not find any sensor");
-		exit(1);
+		goto error;
 	}
-	gpio_conf(GPIO_SW);
 #endif
 
-	if (proc_switch(config)) {
-		ERROR("proc_switch failed");
-		exit(1);
+	ret = fork();
+	if (ret < 0)
+		goto error;
+	if (ret == 0) {
+		if (proc_switch(config)) {
+			ERROR("proc_switch failed");
+			exit(1);
+		}
+		exit(0);
 	}
+	config->switch_pid = ret;
 
 	sock = socket(AF_INET, SOCK_STREAM, 0);
 
@@ -269,15 +283,11 @@ int main(int argc, char *argv[])
 			break;
 		}
 
-		DEBUG("new socket");
-
 		pid = fork();
 		if (pid < 0)
 			ERROR("fork: %s",  strerror(errno));
 		else if (pid == 0) {
-			DEBUG("new proc %d", getpid());
 			handle_sess(s, config);
-			DEBUG("proc %d done", getpid());
 			exit(0);
 		}
 
@@ -297,6 +307,11 @@ int main(int argc, char *argv[])
 
 	close(sock);
 
+error:
+	kill(discover_pid, SIGTERM);
+	if (config)
+		kill(config->switch_pid, SIGTERM);
+
 	while (1) {
 		pid = waitpid(-1, &status, WNOHANG);
 		if (pid < 0) {
@@ -307,7 +322,7 @@ int main(int argc, char *argv[])
 		DEBUG("proc %d ended", pid);
 	}
 
-	if (shmdt(config))
+	if (config && shmdt(config))
 		ERROR("shmdt failed: %s", strerror(errno));
 
 	return 0;
