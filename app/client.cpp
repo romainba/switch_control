@@ -68,6 +68,9 @@ Client::Client(QWidget *parent)
     udpSocket = new QUdpSocket(this);
     udpSocket->bind(QHostAddress::AnyIPv4, MULTICAST_PORT + 1, QUdpSocket::ShareAddress);
     udpSocket->joinMulticastGroup(groupAddr);
+
+    serverAddr = NULL;
+
     connect(udpSocket, SIGNAL(readyRead()), this, SLOT(processPendingDatagrams()));
 
     sendMulticastMsg("discover");
@@ -105,23 +108,13 @@ Client::Client(QWidget *parent)
     mainLayout->addWidget(tempThresSlider, 0, 1);
     mainLayout->addWidget(tempThresValueLabel, 0, 2);
     mainLayout->addWidget(tempLabel, 1, 0, 1, 1);
-    mainLayout->addWidget(buttonBox, 1, 1, 1, 3);
+    mainLayout->addWidget(buttonBox, 1, 1, 1, 2);
     setLayout(mainLayout);
 
     qDebug() << QDesktopWidget().availableGeometry(this).size();
     resize(QDesktopWidget().availableGeometry(this).size());
 
     setWindowTitle(tr(APP_NAME));
-
-    /*
-     * Connect socket to the server
-     */
-    tcpSocket = new QTcpSocket(this);
-    connect(tcpSocket, SIGNAL(readyRead()), this, SLOT(readResp()));
-    connect(tcpSocket, SIGNAL(error(QAbstractSocket::SocketError)),
-            this, SLOT(socketError(QAbstractSocket::SocketError)));
-    connect(tcpSocket, SIGNAL(stateChanged(QAbstractSocket::SocketState)),
-            this, SLOT(socketStateChanged(QAbstractSocket::SocketState)));
 
     statusTimer = 0;
 }
@@ -294,6 +287,8 @@ void Client::disable()
     switchButton->setEnabled(0);
     tempLabel->setText("-");
     tempThresValueLabel->setText("-");
+
+    tcpSocket->close();
 }
 
 void Client::socketStateChanged(QAbstractSocket::SocketState state)
@@ -399,8 +394,8 @@ void Client::sendMulticastMsg(QByteArray datagram)
 
 void Client::processPendingDatagrams()
 {
-    qDebug() << "upd recv msg";
-    if (tcpSocket->state() != QAbstractSocket::UnconnectedState) {
+    //qDebug() << "upd recv msg";
+    if (serverAddr) {
             qDebug() << "skip udp msg";
             return;
     }
@@ -427,8 +422,20 @@ void Client::processPendingDatagrams()
 
         qDebug() << "radiator" << serverAddr->toStdString().c_str() << ":" << serverPort;
 
+        udpSocket->close();
+
+        /* connect socket to the server */
+        tcpSocket = new QTcpSocket(this);
+        connect(tcpSocket, SIGNAL(readyRead()), this, SLOT(readResp()));
+        connect(tcpSocket, SIGNAL(error(QAbstractSocket::SocketError)),
+                this, SLOT(socketError(QAbstractSocket::SocketError)));
+        connect(tcpSocket, SIGNAL(stateChanged(QAbstractSocket::SocketState)),
+                this, SLOT(socketStateChanged(QAbstractSocket::SocketState)));
+
         tcpSocket->connectToHost(serverAddr->toStdString().c_str(), serverPort);
 
         break;
     }
+
+
 }
