@@ -84,8 +84,6 @@ private slots:
     void sendCmd(int cmd, int *data);
     void timerEvent(QTimerEvent *e);
 
-    void on_switchButton_clicked();
-
 private:
     qint16 currentTemp;
     qint16 tempThres;

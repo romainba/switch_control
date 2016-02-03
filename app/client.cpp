@@ -57,7 +57,6 @@
 
 Client::Client(QWidget *parent) :
     QDialog(parent),
-    networkSession(0),
     ui(new Ui::Client)
 {
     /*
@@ -154,17 +153,8 @@ void delay( int millisecondsToWait )
 
 void Client::sendCmd(int cmd, int *data)
 {
-    // QThread *thread = QThread::currentThread();
-
     if (cmd >= CMD_NUM)
         return;
-
-    //qDebug() << "sendCmd tcpSocket state" << tcpSocket->state();
-    //if (!tcpSocket->state() == QAbstractSocket::UnconnectedState) {
-    //    qDebug() << "connecting";
-    //    tcpSocket->connectToHost(serverAddr->toStdString().c_str(), serverPort);
-    //    return;
-    //}
 
     struct cmd c;
     c.header.id = cmd;
@@ -329,28 +319,6 @@ void Client::socketError(QAbstractSocket::SocketError error)
     tcpSocket->connectToHost(serverAddr->toStdString().c_str(), serverPort);
 }
 
-#if 0
-void Client::sessionOpened()
-{
-    // Save the used configuration
-    QNetworkConfiguration config = networkSession->configuration();
-    QString id;
-    if (config.type() == QNetworkConfiguration::UserChoice)
-        id = networkSession->sessionProperty(QLatin1String("UserChoiceConfiguration")).toString();
-    else
-        id = config.identifier();
-
-    QSettings settings(QSettings::UserScope, QLatin1String("QtProject"));
-    settings.beginGroup(QLatin1String("QtNetwork"));
-    settings.setValue(QLatin1String("DefaultNetworkConfiguration"), id);
-    settings.endGroup();
-
-    qDebug() << "switch server should run";
-
-    enableButtons();
-}
-#endif
-
 void Client::timerEvent(QTimerEvent *e)
 {
     if (e->timerId() == statusTimer) {
@@ -421,6 +389,4 @@ void Client::processPendingDatagrams()
 
         break;
     }
-
-
 }

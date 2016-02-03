@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>416</width>
-    <height>174</height>
+    <height>170</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -34,6 +34,9 @@
      <width>251</width>
      <height>20</height>
     </rect>
+   </property>
+   <property name="focusPolicy">
+    <enum>Qt::NoFocus</enum>
    </property>
    <property name="acceptDrops">
     <bool>false</bool>
@@ -87,7 +90,7 @@
     </rect>
    </property>
    <property name="text">
-    <string/>
+    <string>0</string>
    </property>
    <property name="buddy">
     <cstring>tempThresSlider</cstring>
