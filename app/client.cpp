@@ -88,10 +88,7 @@ Client::Client(QWidget *parent) :
     ui->tempThresSlider->setMaximum(28);
     ui->tempThresSlider->setValue(0);
 
-    ui->tempThresLabel->setBuddy(ui->tempThresSlider);
-
     ui->tempThresValue = new QLabel(tr("-"));
-    ui->tempThresValue->setBuddy(ui->tempThresSlider);
 
     ui->switchButton->setCheckable(false);
     ui->switchButton->setEnabled(false);

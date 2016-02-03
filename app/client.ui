@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>425</width>
-    <height>190</height>
+    <width>416</width>
+    <height>174</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -35,8 +35,17 @@
      <height>20</height>
     </rect>
    </property>
+   <property name="acceptDrops">
+    <bool>false</bool>
+   </property>
    <property name="orientation">
     <enum>Qt::Horizontal</enum>
+   </property>
+   <property name="invertedAppearance">
+    <bool>false</bool>
+   </property>
+   <property name="invertedControls">
+    <bool>false</bool>
    </property>
   </widget>
   <widget class="QLabel" name="tempThresLabel">
@@ -50,6 +59,9 @@
    </property>
    <property name="text">
     <string>Temp.</string>
+   </property>
+   <property name="buddy">
+    <cstring>tempThresSlider</cstring>
    </property>
   </widget>
   <widget class="QLabel" name="statusLabel">
@@ -77,8 +89,15 @@
    <property name="text">
     <string/>
    </property>
+   <property name="buddy">
+    <cstring>tempThresSlider</cstring>
+   </property>
   </widget>
  </widget>
+ <tabstops>
+  <tabstop>tempThresSlider</tabstop>
+  <tabstop>switchButton</tabstop>
+ </tabstops>
  <resources/>
  <connections/>
 </ui>
