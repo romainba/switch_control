@@ -45,25 +45,26 @@
 #include <QTcpSocket>
 #include <QHostAddress>
 #include "switch.h"
+#include "ui_client.h"
 
 QT_BEGIN_NAMESPACE
-class QComboBox;
-class QDialogButtonBox;
-class QLabel;
-class QLineEdit;
-class QSlider;
-class QPushButton;
+class QDialog;
 class QTcpSocket;
 class QUdpSocket;
 class QNetworkSession;
 QT_END_NAMESPACE
+
+namespace Ui {
+    class Client;
+}
 
 class Client : public QDialog
 {
     Q_OBJECT
 
 public:
-    Client(QWidget *parent = 0);
+    explicit Client(QWidget *parent = 0);
+    ~Client();
 
 private slots:
     void readResp();
@@ -83,14 +84,9 @@ private slots:
     void sendCmd(int cmd, int *data);
     void timerEvent(QTimerEvent *e);
 
-private:
-    QLabel *tempThresLabel;
-    QLabel *tempThresValueLabel;
-    QSlider *tempThresSlider;
-    QLabel *tempLabel;
-    QPushButton *switchButton;
-    QDialogButtonBox *buttonBox;
+    void on_switchButton_clicked();
 
+private:
     qint16 currentTemp;
     qint16 tempThres;
     quint16 blockSize;
@@ -106,6 +102,8 @@ private:
 
     QTcpSocket *tcpSocket;
     QNetworkSession *networkSession;
+
+    Ui::Client *ui;
 };
 
 #endif

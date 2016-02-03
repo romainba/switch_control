@@ -19,3 +19,8 @@ DISTFILES += \
     android/gradlew
 
 ANDROID_PACKAGE_SOURCE_DIR = $$PWD/android
+
+FORMS += \
+    client.ui
+
+RESOURCES +=

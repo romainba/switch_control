@@ -43,9 +43,9 @@
 #include <QDataStream>
 #include <QTime>
 
-//#include "systemutil.h"
 #include "client.h"
 #include "switch.h"
+#include "ui_client.h"
 
 #if 1
 #define ENDIAN QDataStream::BigEndian
@@ -55,8 +55,10 @@
 
 #define STATUSTIMEOUT 5
 
-Client::Client(QWidget *parent)
-:   QDialog(parent), networkSession(0)
+Client::Client(QWidget *parent) :
+    QDialog(parent),
+    networkSession(0),
+    ui(new Ui::Client)
 {
     /*
      * Send broadcast discover message in order to receive back the IP address
@@ -80,45 +82,31 @@ Client::Client(QWidget *parent)
      * Initializing the user interface
      */
 
-    tempThresSlider = new QSlider(Qt::Horizontal, this);
-    tempThresSlider->setMinimum(15);
-    tempThresSlider->setMaximum(28);
-    tempThresSlider->setValue(0);
+    ui->setupUi(this);
 
-    tempThresLabel = new QLabel(tr("Max"));
-    tempThresLabel->setBuddy(tempThresSlider);
+    ui->tempThresSlider->setMinimum(15);
+    ui->tempThresSlider->setMaximum(28);
+    ui->tempThresSlider->setValue(0);
 
-    tempLabel = new QLabel(tr("-"));
-    tempThresValueLabel = new QLabel(tr("-"));
-    tempThresValueLabel->setBuddy(tempThresSlider);
+    ui->tempThresLabel->setBuddy(ui->tempThresSlider);
 
-    switchButton = new QPushButton("Switch ON", this);
-    switchButton->setCheckable(false);
-    switchButton->setEnabled(false);
+    ui->tempThresValue = new QLabel(tr("-"));
+    ui->tempThresValue->setBuddy(ui->tempThresSlider);
 
-    buttonBox = new QDialogButtonBox;
-    buttonBox->addButton(switchButton, QDialogButtonBox::ActionRole);
+    ui->switchButton->setCheckable(false);
+    ui->switchButton->setEnabled(false);
 
-    connect(tempThresSlider, SIGNAL(valueChanged(int)),
+    connect(ui->tempThresSlider, SIGNAL(valueChanged(int)),
             this, SLOT(tempThresChanged()));
-    connect(switchButton, SIGNAL(clicked()), this, SLOT(switchToggled()));
-
-    QGridLayout *mainLayout = new QGridLayout;
-    mainLayout->addWidget(tempThresLabel, 0, 0);
-    mainLayout->addWidget(tempThresSlider, 0, 1);
-    mainLayout->addWidget(tempThresValueLabel, 0, 2);
-    mainLayout->addWidget(tempLabel, 1, 0, 1, 1);
-    mainLayout->addWidget(buttonBox, 1, 1, 1, 2);
-    setLayout(mainLayout);
-
-    qDebug() << QDesktopWidget().availableGeometry(this).size();
-    resize(QDesktopWidget().availableGeometry(this).size());
-
-    setWindowTitle(tr(APP_NAME));
+    connect(ui->switchButton, SIGNAL(clicked()), this, SLOT(switchToggled()));
 
     statusTimer = 0;
 }
 
+Client::~Client()
+{
+    delete ui;
+}
 
 QDataStream &operator<<(QDataStream &out, const struct cmd &p)
 {
@@ -232,13 +220,13 @@ void Client::readResp()
         memcpy(&status, s, sizeof(struct status));
 
         QString str = s->sw_pos ? "ON" : "OFF";
-        tempLabel->setText( str + " " + QString::number(s->temp / 1000.0, 'f', 1) + "°C");
+        ui->statusLabel->setText( str + " " + QString::number(s->temp / 1000.0, 'f', 1) + "°C");
 
-        tempThresSlider->setValue(s->tempThres/1000.0);
+        ui->tempThresSlider->setValue(s->tempThres/1000.0);
         qDebug() << "  temp" << s->temp / 1000.0 << "thres" << s->tempThres / 1000.0;
-        switchButton->setText(s->sw_pos ? "Switch OFF" : "Switch ON");
+        ui->switchButton->setText(s->sw_pos ? "Switch OFF" : "Switch ON");
 
-        if (!switchButton->isEnabled()) {
+        if (!ui->switchButton->isEnabled()) {
                 qDebug() << "enabled with switch" << s->sw_pos;
                 enable();
         }
@@ -255,9 +243,9 @@ void Client::requestStatus()
 
 void Client::tempThresChanged()
 {
-    int temp = tempThresSlider->value();
+    int temp = ui->tempThresSlider->value();
 
-    tempThresValueLabel->setText(QString::number(temp) + "°C");
+    ui->tempThresValue->setText(QString::number(temp) + "°C");
 }
 
 void Client::switchToggled()
@@ -266,14 +254,14 @@ void Client::switchToggled()
 
     sendCmd(CMD_SET_SW_POS, &status.sw_pos);
 
-    switchButton->setText(status.sw_pos ? "Switch OFF" : "Switch ON");
+    ui->switchButton->setText(status.sw_pos ? "Switch OFF" : "Switch ON");
 }
 
 void Client::enable()
 {
     requestStatus();
     statusTimer = startTimer(STATUSTIMEOUT * 1000);
-    switchButton->setEnabled(1);
+    ui->switchButton->setEnabled(1);
     qDebug() << "enable";
 }
 
@@ -284,9 +272,9 @@ void Client::disable()
         killTimer(statusTimer);
         statusTimer = 0;
     }
-    switchButton->setEnabled(0);
-    tempLabel->setText("-");
-    tempThresValueLabel->setText("-");
+    ui->switchButton->setEnabled(0);
+    ui->statusLabel->setText("-");
+    ui->tempThresValue->setText("-");
 
     tcpSocket->close();
 }
@@ -371,8 +359,8 @@ void Client::timerEvent(QTimerEvent *e)
     if (e->timerId() == statusTimer) {
 
         int t = status.tempThres / 1000;
-        if (t != tempThresSlider->value()) {
-            status.tempThres = tempThresSlider->value() * 1000;
+        if (t != ui->tempThresSlider->value()) {
+            status.tempThres = ui->tempThresSlider->value() * 1000;
             sendCmd(CMD_SET_TEMP, &status.tempThres);
         } else
             requestStatus();
