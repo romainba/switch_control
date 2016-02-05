@@ -39,12 +39,12 @@
 ****************************************************************************/
 
 #include <QApplication>
-#include "client.h"
+#include "device.h"
 
 int main(int argc, char *argv[])
 {
     QApplication app(argc, argv);
-    Client client;
-    client.show();
+    Device device;
+    device.show();
     return app.exec();
 }

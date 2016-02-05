@@ -1,49 +1,9 @@
-/****************************************************************************
-**
-** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
-** Contact: http://www.qt-project.org/legal
-**
-** This file is part of the examples of the Qt Toolkit.
-**
-** $QT_BEGIN_LICENSE:BSD$
-** You may use this file under the terms of the BSD license as follows:
-**
-** "Redistribution and use in source and binary forms, with or without
-** modification, are permitted provided that the following conditions are
-** met:
-**   * Redistributions of source code must retain the above copyright
-**     notice, this list of conditions and the following disclaimer.
-**   * Redistributions in binary form must reproduce the above copyright
-**     notice, this list of conditions and the following disclaimer in
-**     the documentation and/or other materials provided with the
-**     distribution.
-**   * Neither the name of Digia Plc and its Subsidiary(-ies) nor the names
-**     of its contributors may be used to endorse or promote products derived
-**     from this software without specific prior written permission.
-**
-**
-** THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-** "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-** LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-** A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
-** OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
-** SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
-** LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
-** DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
-** THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-** (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-** OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE."
-**
-** $QT_END_LICENSE$
-**
-****************************************************************************/
-
 #include <QtWidgets>
 #include <QtNetwork>
+#include <QTcpSocket>
 #include <QDataStream>
 #include <QTime>
 
-//#include "systemutil.h"
 #include "client.h"
 #include "switch.h"
 
@@ -55,26 +15,21 @@
 
 #define STATUSTIMEOUT 5
 
-Client::Client(QWidget *parent)
-:   QDialog(parent), networkSession(0)
+Client::Client(class Device *device, int num, QString *_serverAddr, int _serverPort)
+    : networkSession(0), tcpSocket(this)
 {
-    /*
-     * Send broadcast discover message in order to receive back the IP address
-     * from all the servers.
-     */
+    serverAddr = _serverAddr;
+    serverPort = _serverPort;
 
-    groupAddr = QHostAddress(MULTICAST_ADDR);
+    /* connect socket to the server */
+    tcpSocket = new QTcpSocket(this);
+    connect(tcpSocket, SIGNAL(readyRead()), this, SLOT(readResp()));
+    connect(tcpSocket, SIGNAL(error(QAbstractSocket::SocketError)),
+            this, SLOT(socketError(QAbstractSocket::SocketError)));
+    connect(tcpSocket, SIGNAL(stateChanged(QAbstractSocket::SocketState)),
+            this, SLOT(socketStateChanged(QAbstractSocket::SocketState)));
 
-    udpSocket = new QUdpSocket(this);
-    udpSocket->bind(QHostAddress::AnyIPv4, MULTICAST_PORT + 1, QUdpSocket::ShareAddress);
-    udpSocket->joinMulticastGroup(groupAddr);
-
-    serverAddr = NULL;
-
-    connect(udpSocket, SIGNAL(readyRead()), this, SLOT(processPendingDatagrams()));
-
-    sendMulticastMsg("discover");
-    qDebug() << "sent discover, waiting answer";
+    tcpSocket->connectToHost(serverAddr->toStdString().c_str(), serverPort);
 
     /*
      * Initializing the user interface
@@ -113,8 +68,6 @@ Client::Client(QWidget *parent)
 
     qDebug() << QDesktopWidget().availableGeometry(this).size();
     resize(QDesktopWidget().availableGeometry(this).size());
-
-    setWindowTitle(tr(APP_NAME));
 
     statusTimer = 0;
 }
@@ -344,28 +297,6 @@ void Client::socketError(QAbstractSocket::SocketError error)
     tcpSocket->connectToHost(serverAddr->toStdString().c_str(), serverPort);
 }
 
-#if 0
-void Client::sessionOpened()
-{
-    // Save the used configuration
-    QNetworkConfiguration config = networkSession->configuration();
-    QString id;
-    if (config.type() == QNetworkConfiguration::UserChoice)
-        id = networkSession->sessionProperty(QLatin1String("UserChoiceConfiguration")).toString();
-    else
-        id = config.identifier();
-
-    QSettings settings(QSettings::UserScope, QLatin1String("QtProject"));
-    settings.beginGroup(QLatin1String("QtNetwork"));
-    settings.setValue(QLatin1String("DefaultNetworkConfiguration"), id);
-    settings.endGroup();
-
-    qDebug() << "switch server should run";
-
-    enableButtons();
-}
-#endif
-
 void Client::timerEvent(QTimerEvent *e)
 {
     if (e->timerId() == statusTimer) {
@@ -379,63 +310,4 @@ void Client::timerEvent(QTimerEvent *e)
 
         e->accept();
     }
-}
-
-void Client::sendMulticastMsg(QByteArray datagram)
-{
-    QUdpSocket *s = new QUdpSocket(this);
-
-    s->setSocketOption(QAbstractSocket::MulticastTtlOption, 2);
-
-    s->writeDatagram(datagram.data(), datagram.size(), groupAddr, MULTICAST_PORT);
-    qDebug() << "sent multicast" << groupAddr << "port" << MULTICAST_PORT;
-    s->close();
-}
-
-void Client::processPendingDatagrams()
-{
-    //qDebug() << "upd recv msg";
-    if (serverAddr) {
-            qDebug() << "skip udp msg";
-            return;
-    }
-
-    while (udpSocket->hasPendingDatagrams()) {
-        QByteArray datagram;
-        datagram.resize(udpSocket->pendingDatagramSize());
-        udpSocket->readDatagram(datagram.data(), datagram.size());
-
-        qDebug() << "recv:" << datagram.data();
-        QString data = datagram.data();
-        QStringList list = data.split(":");
-
-        QStringList::iterator it = list.begin();
-
-        if (*it != "radiator") {
-            qDebug() << "skipped msg";
-            continue;
-        }
-
-        it++;
-        serverAddr = new QString(*it++);
-        serverPort = it->toInt();
-
-        qDebug() << "radiator" << serverAddr->toStdString().c_str() << ":" << serverPort;
-
-        udpSocket->close();
-
-        /* connect socket to the server */
-        tcpSocket = new QTcpSocket(this);
-        connect(tcpSocket, SIGNAL(readyRead()), this, SLOT(readResp()));
-        connect(tcpSocket, SIGNAL(error(QAbstractSocket::SocketError)),
-                this, SLOT(socketError(QAbstractSocket::SocketError)));
-        connect(tcpSocket, SIGNAL(stateChanged(QAbstractSocket::SocketState)),
-                this, SLOT(socketStateChanged(QAbstractSocket::SocketState)));
-
-        tcpSocket->connectToHost(serverAddr->toStdString().c_str(), serverPort);
-
-        break;
-    }
-
-
 }
