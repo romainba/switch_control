@@ -1,5 +1,4 @@
 #include <QtWidgets>
-#include <QtNetwork>
 #include <QTcpSocket>
 #include <QDataStream>
 #include <QTime>
@@ -15,12 +14,9 @@
 
 #define STATUSTIMEOUT 5
 
-Client::Client(class Device *device, int num, QString *_serverAddr, int _serverPort)
-    : networkSession(0), tcpSocket(this)
+Client::Client(QWidget *parent, int pos, QString *serverAddr, int serverPort)
+    : QDialog(parent), serverAddr(serverAddr), serverPort(serverPort)
 {
-    serverAddr = _serverAddr;
-    serverPort = _serverPort;
-
     /* connect socket to the server */
     tcpSocket = new QTcpSocket(this);
     connect(tcpSocket, SIGNAL(readyRead()), this, SLOT(readResp()));
