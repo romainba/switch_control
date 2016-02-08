@@ -91,10 +91,10 @@ static int send_multicast(char *addr, int port, char *msg, int len)
 	return 0;
 }
 
-int discover_service(char *if_name)
+int discover_service(char *if_name, char *name)
 {
 	char *buffer, buf[100], msg[50];
-	int ret, sock, s, cnt;
+	int ret, sock, s, cnt, optval = 1;
 	unsigned int sin_len;
 	struct sockaddr_in sin;
 	struct ip_mreq mreq;
@@ -104,7 +104,7 @@ int discover_service(char *if_name)
 		DEBUG("%s interface not found", if_name);
 		return 1;
 	}
-	sprintf(buf, "%s:%s:%d", APP_NAME, buffer, PORT);
+	sprintf(buf, "%s:%s:%d:%s", APP_NAME, buffer, PORT, name);
 	free(buffer);
 
 	sock = socket(AF_INET, SOCK_DGRAM, 0);
@@ -113,6 +113,11 @@ int discover_service(char *if_name)
 	sin.sin_addr.s_addr = htonl(INADDR_ANY);
 	sin.sin_port = htons(MULTICAST_PORT);
 	sin_len = sizeof(sin);
+
+	if (setsockopt(sock, SOL_SOCKET, SO_REUSEPORT, &optval, sizeof(optval))) {
+		ERROR("setsockopt failed: %s", strerror(errno));
+		return 1;
+	}
 
 	bind(sock, (struct sockaddr *) &sin, sizeof(sin));
 
@@ -124,7 +129,7 @@ int discover_service(char *if_name)
 		return 1;
 	}
 
-	printf("listening port %d\n", MULTICAST_PORT);
+	printf("listening multicase port %d\n", MULTICAST_PORT);
 
 	while (1) {
 

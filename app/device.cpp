@@ -24,6 +24,17 @@ Device::Device(QWidget *parent)
 
     sendMulticastMsg("discover");
     qDebug() << "sent discover, waiting answer";
+
+    mainLayout = new QGridLayout;
+    mainLayout->setSizeConstraint(QLayout::SetFixedSize);
+
+    qDebug() << QDesktopWidget().availableGeometry(this).size();
+    //resize(QDesktopWidget().availableGeometry(this).size());
+}
+
+class QGridLayout *Device::getLayout(void)
+{
+    return mainLayout;
 }
 
 /*
@@ -48,7 +59,7 @@ void Device::processPendingDatagrams()
     while (udpSocket->hasPendingDatagrams()) {
 
         class QByteArray datagram;
-        class QString *serverAddr;
+        class QString *serverAddr, *name;
         class Client *client;
         int serverPort;
 
@@ -69,13 +80,16 @@ void Device::processPendingDatagrams()
         it++;
         serverAddr = new QString(*it++);
         serverPort = it->toInt();
+        it++;
+        name = new QString(*it);
 
-        qDebug() << "radiator" << serverAddr->toStdString().c_str() << ":" << serverPort;
+        qDebug() << "radiator" << serverAddr->toStdString().c_str() << ":" << serverPort << ":" << name;
 
         udpSocket->close();
 
-        client = new Client(this, num_clients, serverAddr, serverPort);
+        client = new Client(mainLayout, num_clients, serverAddr, serverPort, name);
+        setLayout(mainLayout);
 
         num_clients++;
-    }
+   }
 }

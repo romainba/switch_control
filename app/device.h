@@ -11,6 +11,7 @@ class Device : public QDialog
 
 public:
     Device(QWidget *parent = 0);
+    class QGridLayout *getLayout(void);
 
 private slots:
     void processPendingDatagrams();
@@ -20,6 +21,7 @@ private:
     class QUdpSocket *udpSocket;
     class QHostAddress groupAddr;
     int num_clients;
+    class QGridLayout *mainLayout;
 };
 
 #endif // DEVICE_H

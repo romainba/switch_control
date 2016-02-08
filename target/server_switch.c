@@ -216,13 +216,19 @@ int main(int argc, char *argv[])
 	struct config *config = NULL;
 	char *buffer;
 
+	if (argc < 2 || argc > 3) {
+		printf("usage: %s <name> [<ethernet if>]\n", argv[0]);
+		exit(1);
+	}
+
 	/* start discover service */
 	ret = fork();
 	if (ret < 0)
 		exit(1);
 	if (ret == 0) {
-		char *if_name = (argc > 1) ? argv[1] : "wlan0";
-		if (discover_service(if_name)) {
+		char *if_name = (argc > 2) ? argv[2] : "wlan0";
+
+		if (discover_service(if_name, argv[1])) {
 			ERROR("discover_service failed");
 			exit(1);
 		}

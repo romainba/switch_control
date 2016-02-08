@@ -22,7 +22,8 @@ class Client : public QDialog
     Q_OBJECT
 
 public:
-    Client(QWidget *parent = 0, int pos = 0, QString *serverAddr = 0, int serverPort = 0);
+    Client(class QGridLayout *layout = 0, int pos = 0, QString *serverAddr = 0,
+           int serverPort = 0, QString *name = 0);
 
 private slots:
     void readResp();

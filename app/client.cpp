@@ -6,7 +6,7 @@
 #include "client.h"
 #include "switch.h"
 
-#if 1
+#if 0
 #define ENDIAN QDataStream::BigEndian
 #else
 #define ENDIAN QDataStream::LittleEndian
@@ -14,8 +14,8 @@
 
 #define STATUSTIMEOUT 5
 
-Client::Client(QWidget *parent, int pos, QString *serverAddr, int serverPort)
-    : QDialog(parent), serverAddr(serverAddr), serverPort(serverPort)
+Client::Client(QGridLayout *layout, int pos, QString *serverAddr, int serverPort, QString *name)
+    : serverAddr(serverAddr), serverPort(serverPort)
 {
     /* connect socket to the server */
     tcpSocket = new QTcpSocket(this);
@@ -54,17 +54,13 @@ Client::Client(QWidget *parent, int pos, QString *serverAddr, int serverPort)
             this, SLOT(tempThresChanged()));
     connect(switchButton, SIGNAL(clicked()), this, SLOT(switchToggled()));
 
-    QGridLayout *mainLayout = new QGridLayout;
-    mainLayout->addWidget(tempThresLabel, 0, 0);
-    mainLayout->addWidget(tempThresSlider, 0, 1);
-    mainLayout->addWidget(tempThresValueLabel, 0, 2);
-    mainLayout->addWidget(tempLabel, 1, 0, 1, 1);
-    mainLayout->addWidget(buttonBox, 1, 1, 1, 2);
-    setLayout(mainLayout);
+    layout->addWidget(tempThresLabel, 2*pos, 0);
+    layout->addWidget(tempThresSlider, 2*pos, 1);
+    layout->addWidget(tempThresValueLabel, 2*pos, 2);
+    layout->addWidget(tempLabel, 2*pos + 1, 0, 1, 1);
+    layout->addWidget(buttonBox, 2*pos + 1, 1, 1, 2);
 
-    qDebug() << QDesktopWidget().availableGeometry(this).size();
-    resize(QDesktopWidget().availableGeometry(this).size());
-
+    qDebug() << "client" << pos << "created";
     statusTimer = 0;
 }
 
@@ -118,17 +114,8 @@ void delay( int millisecondsToWait )
 
 void Client::sendCmd(int cmd, int *data)
 {
-    // QThread *thread = QThread::currentThread();
-
     if (cmd >= CMD_NUM)
         return;
-
-    //qDebug() << "sendCmd tcpSocket state" << tcpSocket->state();
-    //if (!tcpSocket->state() == QAbstractSocket::UnconnectedState) {
-    //    qDebug() << "connecting";
-    //    tcpSocket->connectToHost(serverAddr->toStdString().c_str(), serverPort);
-    //    return;
-    //}
 
     struct cmd c;
     c.header.id = cmd;
