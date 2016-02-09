@@ -19,7 +19,7 @@
 #include "sensor.h"
 #include "discover.h"
 
-#define PERIOD_CHECK 30 /* second */
+#define TEMPTHRES 25
 #define DEFAULT_TEMP (25 * 1000) /* degres */
 
 #define GPIO_SW 7
@@ -215,11 +215,15 @@ int main(int argc, char *argv[])
 	struct in_addr in_addr;
 	struct config *config = NULL;
 	char *buffer;
+	int port = DEFAULT_PORT;
 
-	if (argc < 2 || argc > 3) {
-		printf("usage: %s <name> [<ethernet if>]\n", argv[0]);
+	if (argc < 2 || argc > 4) {
+		printf("usage: %s <name> [<ethernet if> [<port>]]\n", argv[0]);
 		exit(1);
 	}
+
+	if (argc == 4)
+		port = atoi(argv[3]);
 
 	/* start discover service */
 	ret = fork();
@@ -228,7 +232,7 @@ int main(int argc, char *argv[])
 	if (ret == 0) {
 		char *if_name = (argc > 2) ? argv[2] : "wlan0";
 
-		if (discover_service(if_name, argv[1])) {
+		if (discover_service(if_name, argv[1], port)) {
 			ERROR("discover_service failed");
 			exit(1);
 		}
@@ -275,11 +279,11 @@ int main(int argc, char *argv[])
 
 	sin.sin_family = AF_INET;
 	sin.sin_addr.s_addr = INADDR_ANY;
-	sin.sin_port = htons(PORT);
+	sin.sin_port = htons(port);
 	bind(sock, (struct sockaddr *) &sin, sizeof(sin));
 
 	listen(sock, 5);
-	printf("listening port %d\n", PORT);
+	printf("listening port %d\n", port);
 
 	while (1) {
 

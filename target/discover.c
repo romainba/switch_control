@@ -12,6 +12,7 @@
 #include <unistd.h>
 #include <net/if.h>
 #include <sys/ioctl.h>
+#include <time.h>
 
 #include "util.h"
 #include "switch.h"
@@ -64,11 +65,11 @@ static int send_multicast(char *addr, int port, char *msg, int len)
 	groupSock.sin_addr.s_addr = inet_addr(addr);
 	groupSock.sin_port = htons(port);
 
+#if 0
 	/* Set local interface for outbound multicast datagrams.
 	 * The IP address specified must be associated with a local,
 	 * multicast capable interface.
 	 */
-#if 0
 	if (setsockopt(sd, IPPROTO_IP, IP_MULTICAST_IF, (char *)&localInterface,
 		       sizeof(localInterface)) < 0) {
 		ERROR("Setting local interface failed: %s", strerror(errno));
@@ -86,25 +87,27 @@ static int send_multicast(char *addr, int port, char *msg, int len)
 		   sizeof(groupSock)) < 0) {
 		ERROR("Sending datagram message error");
 	}
-
 	DEBUG("Sent datagram msg: %s", msg);
+	close(sd);
 	return 0;
 }
 
-int discover_service(char *if_name, char *name)
+int discover_service(char *if_name, char *name, int port)
 {
 	char *buffer, buf[100], msg[50];
-	int ret, sock, s, cnt, optval = 1;
+	int ret, sock, s, cnt, optval = 1, t, i;
 	unsigned int sin_len;
 	struct sockaddr_in sin;
 	struct ip_mreq mreq;
+
+	srand(time(NULL));
 
 	buffer = get_local_ipaddr(if_name);
 	if (!buffer) {
 		DEBUG("%s interface not found", if_name);
 		return 1;
 	}
-	sprintf(buf, "%s:%s:%d:%s", APP_NAME, buffer, PORT, name);
+	sprintf(buf, "%s:%s:%d:%s", APP_NAME, buffer, port, name);
 	free(buffer);
 
 	sock = socket(AF_INET, SOCK_DGRAM, 0);
@@ -146,12 +149,19 @@ int discover_service(char *if_name, char *name)
 			break;
 		}
 		msg[cnt] = 0;
+		if (strncmp(msg, APP_NAME, strlen(APP_NAME)) == 0)
+			continue;
+
 		if (strncmp(msg, DISCOVER_MSG, strlen(DISCOVER_MSG))) {
-			DEBUG("not expected msg");
+			DEBUG("not expected msg: %s", msg);
 			continue;
 		}
 
-		if (send_multicast(MULTICAST_ADDR, MULTICAST_PORT + 1,
+		t = 200000 + rand()/(RAND_MAX/256/1000);
+		usleep(t); /* 200 to 455 ms sleep */
+		printf("sleep %d ms\n", t / 1000);
+
+		if (send_multicast(MULTICAST_ADDR, MULTICAST_PORT,
 				   buf, strlen(buf)))
 			ERROR("send_multicast failed");
 	}

@@ -1,8 +1,7 @@
 #ifndef SWITCH_H
 #define SWITCH_H
 
-#define PORT 8998
-#define TEMPTHRES 25
+#define DEFAULT_PORT 8998
 
 #define MULTICAST_ADDR "239.255.255.250"
 #define MULTICAST_PORT 1602

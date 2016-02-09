@@ -4,6 +4,12 @@
 #include <QDialog>
 #include <QUdpSocket>
 #include <QHostAddress>
+#include "client.h"
+
+struct deviceParam {
+    int pos;
+
+};
 
 class Device : public QDialog
 {
@@ -22,6 +28,9 @@ private:
     class QHostAddress groupAddr;
     int num_clients;
     class QGridLayout *mainLayout;
+
+    QList<class Client *> clientList;
+
 };
 
 #endif // DEVICE_H

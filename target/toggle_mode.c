@@ -3,6 +3,7 @@
  */
 #include <stdio.h>
 #include <unistd.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/socket.h>
 #include <errno.h>
@@ -17,11 +18,12 @@ int main(int argc, char *argv[])
 	struct sockaddr_in sin;
 	struct resp resp;
 	struct cmd cmd;
+	int port = (argc == 2) ? atoi(argv[1]) : DEFAULT_PORT;
 
 	sock = socket(AF_INET, SOCK_STREAM, 0);
 
 	sin.sin_family = AF_INET;
-	sin.sin_port = htons(PORT);
+	sin.sin_port = htons(DEFAULT_PORT);
 	sin.sin_addr.s_addr = inet_addr("127.0.0.1");
 
 	ret = connect(sock, (struct sockaddr *) &sin, sizeof(sin));

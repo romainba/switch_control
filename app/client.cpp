@@ -14,8 +14,8 @@
 
 #define STATUSTIMEOUT 5
 
-Client::Client(QGridLayout *layout, int pos, QString *serverAddr, int serverPort, QString *name)
-    : serverAddr(serverAddr), serverPort(serverPort)
+Client::Client(QGridLayout *layout, QString *name, int pos, QString *addr, int port)
+    : name(name), pos(pos), addr(addr), port(port)
 {
     /* connect socket to the server */
     tcpSocket = new QTcpSocket(this);
@@ -25,7 +25,7 @@ Client::Client(QGridLayout *layout, int pos, QString *serverAddr, int serverPort
     connect(tcpSocket, SIGNAL(stateChanged(QAbstractSocket::SocketState)),
             this, SLOT(socketStateChanged(QAbstractSocket::SocketState)));
 
-    tcpSocket->connectToHost(serverAddr->toStdString().c_str(), serverPort);
+    tcpSocket->connectToHost(addr->toStdString().c_str(), port);
 
     /*
      * Initializing the user interface
@@ -39,7 +39,7 @@ Client::Client(QGridLayout *layout, int pos, QString *serverAddr, int serverPort
     tempThresLabel = new QLabel(tr("Max"));
     tempThresLabel->setBuddy(tempThresSlider);
 
-    tempLabel = new QLabel(tr("-"));
+    tempLabel = new QLabel(*name + tr("-"));
     tempThresValueLabel = new QLabel(tr("-"));
     tempThresValueLabel->setBuddy(tempThresSlider);
 
@@ -54,16 +54,26 @@ Client::Client(QGridLayout *layout, int pos, QString *serverAddr, int serverPort
             this, SLOT(tempThresChanged()));
     connect(switchButton, SIGNAL(clicked()), this, SLOT(switchToggled()));
 
-    layout->addWidget(tempThresLabel, 2*pos, 0);
-    layout->addWidget(tempThresSlider, 2*pos, 1);
-    layout->addWidget(tempThresValueLabel, 2*pos, 2);
-    layout->addWidget(tempLabel, 2*pos + 1, 0, 1, 1);
-    layout->addWidget(buttonBox, 2*pos + 1, 1, 1, 2);
+    layout->addWidget(tempLabel, 2*pos, 0, 1, 1);
+    layout->addWidget(buttonBox, 2*pos, 1, 1, 2);
+
+    layout->addWidget(tempThresLabel, 2*pos + 1, 0);
+    layout->addWidget(tempThresSlider, 2*pos + 1, 1);
+    layout->addWidget(tempThresValueLabel, 2*pos + 1, 2);
 
     qDebug() << "client" << pos << "created";
     statusTimer = 0;
 }
 
+QString *Client::getAddr(void)
+{
+    return addr;
+}
+
+int Client::getPort(void)
+{
+    return port;
+}
 
 QDataStream &operator<<(QDataStream &out, const struct cmd &p)
 {
@@ -168,7 +178,8 @@ void Client::readResp()
         memcpy(&status, s, sizeof(struct status));
 
         QString str = s->sw_pos ? "ON" : "OFF";
-        tempLabel->setText( str + " " + QString::number(s->temp / 1000.0, 'f', 1) + "°C");
+        tempLabel->setText( *name + " " + str + " " +
+                            QString::number(s->temp / 1000.0, 'f', 1) + "°C");
 
         tempThresSlider->setValue(s->tempThres/1000.0);
         qDebug() << "  temp" << s->temp / 1000.0 << "thres" << s->tempThres / 1000.0;
@@ -238,7 +249,7 @@ void Client::socketStateChanged(QAbstractSocket::SocketState state)
         delay(1000);
 
         qDebug() << "reconnecting";
-        tcpSocket->connectToHost(serverAddr->toStdString().c_str(), serverPort);
+        tcpSocket->connectToHost(addr->toStdString().c_str(), port);
         break;
 
     case QAbstractSocket::ConnectedState:
@@ -277,7 +288,7 @@ void Client::socketError(QAbstractSocket::SocketError error)
 
     delay(1000);
     qDebug() << "reconnecting";
-    tcpSocket->connectToHost(serverAddr->toStdString().c_str(), serverPort);
+    tcpSocket->connectToHost(addr->toStdString().c_str(), port);
 }
 
 void Client::timerEvent(QTimerEvent *e)

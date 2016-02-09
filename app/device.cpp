@@ -17,7 +17,7 @@ Device::Device(QWidget *parent)
     groupAddr = QHostAddress(MULTICAST_ADDR);
 
     udpSocket = new QUdpSocket(this);
-    udpSocket->bind(QHostAddress::AnyIPv4, MULTICAST_PORT + 1, QUdpSocket::ShareAddress);
+    udpSocket->bind(QHostAddress::AnyIPv4, MULTICAST_PORT, QUdpSocket::ShareAddress);
     udpSocket->joinMulticastGroup(groupAddr);
 
     connect(udpSocket, SIGNAL(readyRead()), this, SLOT(processPendingDatagrams()));
@@ -61,7 +61,7 @@ void Device::processPendingDatagrams()
         class QByteArray datagram;
         class QString *serverAddr, *name;
         class Client *client;
-        int serverPort;
+        int serverPort, busy = 0;
 
         datagram.resize(udpSocket->pendingDatagramSize());
         udpSocket->readDatagram(datagram.data(), datagram.size());
@@ -83,13 +83,21 @@ void Device::processPendingDatagrams()
         it++;
         name = new QString(*it);
 
+        for (int i = 0; i < clientList.size(); i++) {
+               class Client *c = clientList.at(i);
+               if (c->getAddr() == serverAddr && c->getPort() == serverPort)
+                    busy = 1;
+        }
+        if (busy) {
+            qDebug() << "busy" << serverAddr->toStdString().c_str() << ":" << serverPort;
+            continue;
+        }
+
         qDebug() << "radiator" << serverAddr->toStdString().c_str() << ":" << serverPort << ":" << name;
 
-        udpSocket->close();
-
-        client = new Client(mainLayout, num_clients, serverAddr, serverPort, name);
+        client = new Client(mainLayout, name, clientList.size(), serverAddr, serverPort);
         setLayout(mainLayout);
 
-        num_clients++;
+        clientList.append(client);
    }
 }

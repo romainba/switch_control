@@ -6,24 +6,16 @@
 #include "switch.h"
 #include "device.h"
 
-QT_BEGIN_NAMESPACE
-class QComboBox;
-class QDialogButtonBox;
-class QLabel;
-class QLineEdit;
-class QSlider;
-class QPushButton;
-class QTcpSocket;
-class QNetworkSession;
-QT_END_NAMESPACE
-
 class Client : public QDialog
 {
     Q_OBJECT
 
 public:
-    Client(class QGridLayout *layout = 0, int pos = 0, QString *serverAddr = 0,
-           int serverPort = 0, QString *name = 0);
+    Client(class QGridLayout *layout = 0, QString *name = 0, int pos = 0,
+           QString *addr = 0, int port = 0);
+
+    QString *getAddr();
+    int getPort();
 
 private slots:
     void readResp();
@@ -42,12 +34,12 @@ private slots:
     void timerEvent(QTimerEvent *e);
 
 private:
-    QLabel *tempThresLabel;
-    QLabel *tempThresValueLabel;
-    QSlider *tempThresSlider;
-    QLabel *tempLabel;
-    QPushButton *switchButton;
-    QDialogButtonBox *buttonBox;
+    class QLabel *tempThresLabel;
+    class QLabel *tempThresValueLabel;
+    class QSlider *tempThresSlider;
+    class QLabel *tempLabel;
+    class QPushButton *switchButton;
+    class QDialogButtonBox *buttonBox;
 
     qint16 currentTemp;
     qint16 tempThres;
@@ -56,8 +48,10 @@ private:
     int statusTimer;
     struct status status;
 
-    class QString *serverAddr;
-    int serverPort;
+    QString *name;
+    int pos;
+    QString *addr;
+    int port;
 
     QTcpSocket *tcpSocket;
 };
