@@ -11,8 +11,8 @@ class Client : public QDialog
     Q_OBJECT
 
 public:
-    Client(class QGridLayout *layout = 0, QString *name = 0, int pos = 0,
-           QString *addr = 0, int port = 0);
+    Client(class QGridLayout *layout = 0, QString *name = 0, int devType = 0,
+           int pos = 0, QString *addr = 0, int port = 0);
 
     QString *getAddr();
     int getPort();
@@ -46,9 +46,10 @@ private:
     quint16 blockSize;
 
     int statusTimer;
-    struct status status;
+    union status status;
 
     QString *name;
+    int devType;
     int pos;
     QString *addr;
     int port;

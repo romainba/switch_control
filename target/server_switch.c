@@ -16,8 +16,15 @@
 
 #include "util.h"
 #include <switch.h>
-#include "sensor.h"
 #include "discover.h"
+
+#ifdef CONFIG_RADIATOR1
+#include "ds1820.h"
+#endif
+
+#ifdef CONFIG_RADIATOR2
+#include "RPi_SHT1x.h"
+#endif
 
 #define TEMPTHRES 25
 #define DEFAULT_TEMP (25 * 1000) /* degres */
@@ -31,7 +38,12 @@
 #define LED5 "tp-link:green:lan"  /* gpio 17 */
 
 struct config {
+#ifdef CONFIG_RADIATOR1
 	char dev[20];
+#endif
+#ifdef CONFIG_RADIATOR2
+	int humidity;
+#endif
 	int requested;
 	int temp;
 	int temp_thres;
@@ -44,44 +56,76 @@ enum { REQ_NONE, REQ_ON, REQ_OFF };
 #define SHM_KEY 0x1234
 
 
-static inline void switch_off(struct config *config)
+static inline void switch_off(int *active)
 {
-	if (!config->active)
+	if (!*active)
 		return;
 
 	DEBUG("%s", __func__);
 
-#ifdef REAL_TARGET
+#if (defined CONFIG_RADIATOR1) || (defined CONFIG_RADIATOR2)
 	led_set(LED2, 0);
 	gpio_set(GPIO_SW, 0);
 #endif
-	config->active = 0;
+	*active = 0;
 }
 
-static inline void switch_on(struct config *config)
+static inline void switch_on(int *active)
 {
-	if (config->active)
+	if (*active)
 		return;
 
 	DEBUG("%s", __func__);
 
-#ifdef REAL_TARGET
+#if (defined CONFIG_RADIATOR1) || (defined CONFIG_RADIATOR2)
 	led_set(LED2, 255);
 	gpio_set(GPIO_SW, 255);
 #endif
-	config->active = 1;
+	*active = 1;
 }
 
-static inline int get_temp(struct config *config)
+static inline void get_measure(struct config *config)
 {
-	int temp = 0;
-#ifdef REAL_TARGET
-	if (ds1820_get_temp(config->dev, &temp))
+	config->temp = 23 * 1000;
+
+#ifdef CONFIG_RADIATOR1
+	if (ds1820_get_temp(config->dev, &config->temp))
 		ERROR("sensor reading failed");
-#else
-	temp = 23 * 1000;
 #endif
-	return temp;
+#ifdef CONFIG_RADIATOR2
+	unsigned short int val;
+	float humi, temp;
+
+	if (!SHT1x_Measure_Start(SHT1x_MEAS_T)) {
+		ERROR("SHT1 measure start failed");
+		return;
+	}
+
+	if (!SHT1x_Get_Measure_Value(&val)) {
+		ERROR("SHT1 measure get failed");
+		return;
+	}
+	temp = (float)val;
+
+	// Request Humidity Measurement
+	if (!SHT1x_Measure_Start(SHT1x_MEAS_RH)) {
+		ERROR("SHT1 measure start failed");
+		return;
+	}
+
+	// Read Humidity measurement
+	if (!SHT1x_Get_Measure_Value(&val)) {
+		ERROR("SHT1 measure get failed");
+		return;
+	}
+	humi = (float)val;
+
+	SHT1x_Calc(&humi, &temp);
+	printf("temp %0.2f, humidity %0.2f\n", temp, humi);
+
+	config->temp = (int)(temp * 1000.0);
+	config->humidity = (int)(humi * 1000.0);
+#endif
 }
 
 static void update_switch(struct config *config, int request)
@@ -92,15 +136,15 @@ static void update_switch(struct config *config, int request)
 			config->requested = v;
 	}
 
-	config->temp = get_temp(config);
+	get_measure(config);
 
 	if (config->requested) {
 		if (config->temp > config->temp_thres)
-			switch_off(config);
+			switch_off(&config->active);
 		else
-			switch_on(config);
+			switch_on(&config->active);
 	} else
-		switch_off(config);
+		switch_off(&config->active);
 }
 
 static int proc_switch(struct config *config)
@@ -114,10 +158,10 @@ static int proc_switch(struct config *config)
 	sigaddset(&waitset, SIGUSR1);
 
 #ifdef REAL_TARGET
-	gpio_conf(GPIO_SW);
+	gpio_conf(GPIO_SW, GPIO_MODE_OUT);
 #endif
 	config->active = 1;
-	switch_off(config);
+	switch_off(&config->active);
 
 	if (sigprocmask(SIG_SETMASK, &waitset, NULL) < 0)
 		exit(1);
@@ -173,10 +217,19 @@ static int handle_sess(int s, struct config *config)
 			request = cmd.u.sw_pos /* 0 off, 1 on */ ? REQ_ON : REQ_OFF;
 			break;
 		case CMD_GET_STATUS: {
-			resp.header.len = sizeof(struct status);
-			resp.u.status.temp = config->temp;
-			resp.u.status.tempThres = config->temp_thres;
-			resp.u.status.sw_pos = config->requested;
+#ifdef CONFIG_RADIATOR1
+			resp.header.len = sizeof(struct radiator1_status);
+			resp.status.rad1.temp = config->temp;
+			resp.status.rad1.tempThres = config->temp_thres;
+			resp.status.rad1.sw_pos = config->requested;
+#endif
+#ifdef CONFIG_RADIATOR2
+			resp.header.len = sizeof(struct radiator2_status);
+			resp.status.rad2.temp = config->temp;
+			resp.status.rad2.tempThres = config->temp_thres;
+			resp.status.rad2.sw_pos = config->requested;
+			resp.status.rad2.humidity = config->humidity;
+#endif
 			break;
 		}
 		case CMD_TOGGLE_MODE:
@@ -256,11 +309,15 @@ int main(int argc, char *argv[])
 	memset(config, 0, sizeof(struct config));
 	config->temp_thres = DEFAULT_TEMP;
 
-#ifdef REAL_TARGET
+#ifdef CONFIG_RADIATOR1
 	if (ds1820_search(config->dev)) {
 		ERROR("Did not find any sensor");
 		goto error;
 	}
+#endif
+#ifdef CONFIG_RADIATOR2
+	SHT1x_InitPins();
+	SHT1x_Reset();
 #endif
 
 	ret = fork();

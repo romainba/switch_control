@@ -1,9 +1,10 @@
-
 #include <stdio.h>
 #include <string.h>
 #include <stdarg.h>
 #include <sys/stat.h>
 #include <stdlib.h>
+#include <fcntl.h>
+#include <unistd.h>
 #include <errno.h>
 
 #include "util.h"
@@ -23,16 +24,24 @@ int file_exists(char *file)
 	return 1; /* S_ISDIR(s.st_mode) */
 }
 
-void gpio_conf(int gpio)
+void gpio_dir(int gpio, int mode)
+{
+	char str[50];
+
+	sprintf(str, "echo %s > /sys/class/gpio/gpio%d/direction",
+		mode == GPIO_MODE_IN ? "in" : "out", gpio);
+	if (system(str))
+		ERROR("system %s failed", str);
+}
+
+void gpio_conf(int gpio, int mode)
 {
 	char str[50];
 
 	sprintf(str, "echo %d > /sys/class/gpio/export", gpio);
 	system(str);
 
-	sprintf(str, "echo out > /sys/class/gpio/gpio%d/direction", gpio);
-	if (system(str))
-		ERROR("system %s failed", str);
+	gpio_dir(gpio, mode);
 }
 
 void gpio_set(int gpio, int value)
@@ -42,6 +51,32 @@ void gpio_set(int gpio, int value)
 	if (system(str))
 		ERROR("system %s failed", str);
 }
+
+int gpio_get(int gpio)
+{
+	char str[50];
+	int fd, n, ret = 0;
+
+	sprintf(str, "/sys/class/gpio/gpio%d/value", gpio);
+	fd = open(str, O_RDONLY);
+	n = read(fd, str, sizeof(str));
+	if (n < 0) {
+		printf("read gpio failed\n");
+		ret = -1;
+		goto error;
+	}
+
+	ret = str[0] - '0';
+	if (ret < 0 || ret > 1) {
+		ret = -1;
+		goto error;
+	}
+
+error:
+	close(fd);
+	return ret;
+}
+
 
 void led_set(char *led, int value)
 {

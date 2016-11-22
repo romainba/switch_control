@@ -14,8 +14,8 @@
 
 #define STATUSTIMEOUT 5
 
-Client::Client(QGridLayout *layout, QString *name, int pos, QString *addr, int port)
-    : name(name), pos(pos), addr(addr), port(port)
+Client::Client(QGridLayout *layout, QString *name, int devType, int pos, QString *addr, int port)
+    : name(name), devType(devType), pos(pos), addr(addr), port(port)
 {
     /* connect socket to the server */
     tcpSocket = new QTcpSocket(this);
@@ -92,7 +92,7 @@ QDataStream &operator>>(QDataStream &in, struct resp_header &p)
 
 QDataStream &operator>>(QDataStream &in, struct resp &p)
 {
-    int i, *ptr = (int *)&p.u;
+    int i, *ptr = (int *)&p.status;
 
     for (i = 0; i < p.header.len / 4; i++)
         in >> ptr[i];
@@ -110,7 +110,7 @@ static int respDataSize[CMD_NUM] = {
     [CMD_SET_SW_POS] = 0,
     [CMD_TOGGLE_MODE] = 0,
     [CMD_SET_TEMP] = 0,
-    [CMD_GET_STATUS] = sizeof(struct status)
+    [CMD_GET_STATUS] = sizeof(union status)
 };
 
 void delay( int millisecondsToWait )
@@ -130,6 +130,7 @@ void Client::sendCmd(int cmd, int *data)
     struct cmd c;
     c.header.id = cmd;
     c.header.len = cmdDataSize[cmd];
+
     memcpy(&c.u, data, cmdDataSize[cmd]);
 
     QDataStream out(tcpSocket);
@@ -173,20 +174,45 @@ void Client::readResp()
 
     switch (resp.header.id) {
     case CMD_GET_STATUS: {
-        struct status *s = &resp.u.status;
 
-        memcpy(&status, s, sizeof(struct status));
+        memcpy(&status, &resp.status, devices_resp_size[devType]);
 
-        QString str = s->sw_pos ? "ON" : "OFF";
-        tempLabel->setText( *name + " " + str + " " +
-                            QString::number(s->temp / 1000.0, 'f', 1) + "°C");
+        switch (devType) {
+        case RADIATOR1: {
+            struct radiator1_status *s = &resp.status.rad1;
 
-        tempThresSlider->setValue(s->tempThres/1000.0);
-        qDebug() << "  temp" << s->temp / 1000.0 << "thres" << s->tempThres / 1000.0;
-        switchButton->setText(s->sw_pos ? "Switch OFF" : "Switch ON");
+            QString str = s->sw_pos ? "ON" : "OFF";
+    
+            switchButton->setText(s->sw_pos ? "Switch OFF" : "Switch ON");
+    
+            tempThresSlider->setValue(s->tempThres/1000.0);
+
+            tempLabel->setText(*name + " " + str + " " +
+                               QString::number(s->temp / 1000.0, 'f', 1) + "°C");
+            qDebug() << "  temp" << s->temp / 1000.0 << "thres" <<
+                        s->tempThres / 1000.0;
+
+            break;
+        }
+        case RADIATOR2: {
+            struct radiator2_status *s = &resp.status.rad2;
+
+            QString str = s->sw_pos ? "ON" : "OFF";
+    
+            switchButton->setText(s->sw_pos ? "Switch OFF" : "Switch ON");
+    
+            tempThresSlider->setValue(s->tempThres/1000.0);
+
+            tempLabel->setText(*name + " " + str + " " +
+                               QString::number(s->temp / 1000.0, 'f', 1) + "°C");
+            qDebug() << "  temp" << s->temp / 1000.0 << "thres" <<
+                        s->tempThres / 1000.0;
+
+            break;
+        }
+        }
 
         if (!switchButton->isEnabled()) {
-                qDebug() << "enabled with switch" << s->sw_pos;
                 enable();
         }
         break;
@@ -209,11 +235,22 @@ void Client::tempThresChanged()
 
 void Client::switchToggled()
 {
-    status.sw_pos = !status.sw_pos;
+    int sw_pos;
 
-    sendCmd(CMD_SET_SW_POS, &status.sw_pos);
+    switch (devType) {
+    case RADIATOR1:
+        sw_pos = !status.rad1.sw_pos;
+        status.rad1.sw_pos = sw_pos;
+        break;
+    case RADIATOR2:
+        sw_pos = !status.rad2.sw_pos;
+        status.rad2.sw_pos = sw_pos;
+        break;
+    }
 
-    switchButton->setText(status.sw_pos ? "Switch OFF" : "Switch ON");
+    sendCmd(CMD_SET_SW_POS, &sw_pos);
+
+    switchButton->setText(sw_pos ? "Switch OFF" : "Switch ON");
 }
 
 void Client::enable()
@@ -295,10 +332,20 @@ void Client::timerEvent(QTimerEvent *e)
 {
     if (e->timerId() == statusTimer) {
 
-        int t = status.tempThres / 1000;
+        int *tempThres;
+
+        switch (devType) {
+        case RADIATOR1:
+            tempThres = &status.rad1.tempThres;
+            break;
+        case RADIATOR2:
+            tempThres = &status.rad2.tempThres;
+            break;
+        }
+        int t = *tempThres / 1000;
         if (t != tempThresSlider->value()) {
-            status.tempThres = tempThresSlider->value() * 1000;
-            sendCmd(CMD_SET_TEMP, &status.tempThres);
+            *tempThres = tempThresSlider->value() * 1000;
+            sendCmd(CMD_SET_TEMP, tempThres);
         } else
             requestStatus();
 

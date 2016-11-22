@@ -41,18 +41,44 @@ struct resp_header {
     int len;
 };
 
-struct status {
-    int temp;
+struct radiator1_status {
     int tempThres;
     int sw_pos;
+    int temp;
+};
+
+struct radiator2_status {
+    int tempThres;
+    int sw_pos;
+    int temp;
+    int humidity;
+};
+
+union status {
+    struct radiator1_status rad1;
+    struct radiator2_status rad2;
 };
 
 struct resp {
     struct resp_header header;
-    union {
-        struct status status;
-    } u;
+    union status status;
 };
 
+#define NUM_DEVICES 2
+
+enum {
+    RADIATOR1,
+    RADIATOR2
+};
+
+static char devices_name[NUM_DEVICES][15] = {
+    "radiator1", /* struct ds1820_status */
+    "radiator2" /* struct sht1x_status */
+};
+
+static int devices_resp_size[NUM_DEVICES] = {
+    sizeof(struct radiator1_status),
+    sizeof(struct radiator2_status)
+};
 
 #endif // SWITCH_H

@@ -13,8 +13,15 @@ enum {
 void logger(int priority, const char *file, int line,
 	       const char *func,const char *fmt, ...);
 
-void gpio_conf(int gpio);
+enum {
+	GPIO_MODE_IN,
+	GPIO_MODE_OUT
+};
+
+void gpio_conf(int gpio, int mode);
+void gpio_dir(int gpio, int mode);
 void gpio_set(int gpio, int value);
+int gpio_get(int gpio);
 void led_set(char *led, int value);
 int led_get(char *led);
 
