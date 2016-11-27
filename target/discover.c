@@ -107,7 +107,7 @@ int discover_service(char *if_name, char *name, int port)
 		DEBUG("%s interface not found", if_name);
 		return 1;
 	}
-	sprintf(buf, "%s:%s:%d:%s", APP_NAME, buffer, port, name);
+	sprintf(buf, "%s:%s:%d:%s", (char *)(devices_name + dev_type), buffer, port, name);
 	free(buffer);
 
 	sock = socket(AF_INET, SOCK_DGRAM, 0);

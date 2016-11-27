@@ -81,4 +81,12 @@ static int devices_resp_size[NUM_DEVICES] = {
     sizeof(struct radiator2_status)
 };
 
+#ifdef CONFIG_RADIATOR1
+static int dev_type = RADIATOR1;
+#endif
+
+#ifdef CONFIG_RADIATOR2
+static int dev_type = RADIATOR2;
+#endif
+
 #endif // SWITCH_H
