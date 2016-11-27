@@ -31,16 +31,20 @@ void gpio_dir(int gpio, int mode)
 	sprintf(str, "echo %s > /sys/class/gpio/gpio%d/direction",
 		mode == GPIO_MODE_IN ? "in" : "out", gpio);
 	if (system(str))
-		ERROR("system %s failed", str);
+		ERROR("gpio_dir %d failed\n", gpio);
 }
 
 void gpio_conf(int gpio, int mode)
 {
 	char str[50];
+	struct stat st;
 
-	sprintf(str, "echo %d > /sys/class/gpio/export", gpio);
-	system(str);
-
+	sprintf(str, "/sys/class/gpio/export/gpio%d", gpio);
+	if (stat(str, &st)) {
+		sprintf(str, "echo %d > /sys/class/gpio/export", gpio);
+		if (system(str))
+			ERROR("gpio_conf %d failed\n", gpio);
+	}
 	gpio_dir(gpio, mode);
 }
 
@@ -49,7 +53,7 @@ void gpio_set(int gpio, int value)
 	char str[50];
 	sprintf(str, "echo %d > /sys/class/gpio/gpio%d/value", value, gpio);
 	if (system(str))
-		ERROR("system %s failed", str);
+		ERROR("gpio_set %d failed\n", gpio);
 }
 
 int gpio_get(int gpio)
