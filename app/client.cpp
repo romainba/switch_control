@@ -204,7 +204,8 @@ void Client::readResp()
             tempThresSlider->setValue(s->tempThres/1000.0);
 
             tempLabel->setText(*name + " " + str + " " +
-                               QString::number(s->temp / 1000.0, 'f', 1) + "°C");
+                               QString::number(s->temp / 1000.0, 'f', 1) + "°C humidity " +
+                               QString::number(s->humidity / 1000.0, 'f', 1) + "%");
             qDebug() << "  temp" << s->temp / 1000.0 << "thres" <<
                         s->tempThres / 1000.0;
 

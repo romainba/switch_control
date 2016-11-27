@@ -29,6 +29,7 @@
 #define TEMPTHRES 25
 #define DEFAULT_TEMP (25 * 1000) /* degres */
 
+#ifdef CONFIG_RADIATOR1
 #define GPIO_SW 7
 
 /* led in /sys/class/leds/ */
@@ -36,6 +37,11 @@
 #define LED3 "tp-link:green:3g"   /* gpio 27 */
 #define LED4 "tp-link:green:wlan" /* gpio 0 */
 #define LED5 "tp-link:green:lan"  /* gpio 17 */
+#endif
+
+#ifdef CONFIG_RADIATOR2
+#define GPIO_SW 3
+#endif
 
 struct config {
 #ifdef CONFIG_RADIATOR1
@@ -63,10 +69,12 @@ static inline void switch_off(int *active)
 
 	DEBUG("%s", __func__);
 
-#if (defined CONFIG_RADIATOR1) || (defined CONFIG_RADIATOR2)
+#if (defined CONFIG_RADIATOR1)
 	led_set(LED2, 0);
-	gpio_set(GPIO_SW, 0);
 #endif
+#if (defined CONFIG_RADIATOR2)
+#endif
+	gpio_set(GPIO_SW, 0);
 	*active = 0;
 }
 
@@ -77,10 +85,10 @@ static inline void switch_on(int *active)
 
 	DEBUG("%s", __func__);
 
-#if (defined CONFIG_RADIATOR1) || (defined CONFIG_RADIATOR2)
+#if (defined CONFIG_RADIATOR1)
 	led_set(LED2, 255);
-	gpio_set(GPIO_SW, 255);
 #endif
+	gpio_set(GPIO_SW, 255);
 	*active = 1;
 }
 

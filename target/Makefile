@@ -15,7 +15,7 @@ all: $(BIN)
 
 SERVER_OBJS = util.o RPi_SHT1x.o discover.o server_switch.o
 TOGGLE_OBJS = util.o toggle_mode.o
-#INDEX_OBJS = sensor.o index.o
+INDEX_OBJS = ds1820.o index.o
 
 OBJS = $(SERVER_OBJS) $(TOGGLE_OBJS) $(INDEX_OBJS)
 

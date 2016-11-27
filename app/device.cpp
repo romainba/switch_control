@@ -72,9 +72,10 @@ void Device::processPendingDatagrams()
 
         QStringList::iterator it = list.begin();
 
-        for (devType = 0; devType < NUM_DEVICES; devType++)
-            if (*it == devices_name[devType])
+        for (devType = 0; devType < NUM_DEVICES; devType++) {
+            if (*it == QString(devices_name[devType]))
                 break;
+        }
         if (devType == NUM_DEVICES) {
             qDebug() << "device not supported";
             continue;

@@ -149,9 +149,6 @@ int discover_service(char *if_name, char *name, int port)
 			break;
 		}
 		msg[cnt] = 0;
-		if (strncmp(msg, APP_NAME, strlen(APP_NAME)) == 0)
-			continue;
-
 		if (strncmp(msg, DISCOVER_MSG, strlen(DISCOVER_MSG))) {
 			DEBUG("not expected msg: %s", msg);
 			continue;
@@ -161,7 +158,7 @@ int discover_service(char *if_name, char *name, int port)
 		usleep(t); /* 200 to 455 ms sleep */
 		printf("sleep %d ms\n", t / 1000);
 
-		if (send_multicast(MULTICAST_ADDR, MULTICAST_PORT,
+		if (send_multicast(MULTICAST_ADDR, MULTICAST_PORT + 1,
 				   buf, strlen(buf)))
 			ERROR("send_multicast failed");
 	}
