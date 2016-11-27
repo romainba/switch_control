@@ -37,10 +37,9 @@ void gpio_dir(int gpio, int mode)
 void gpio_conf(int gpio, int mode)
 {
 	char str[50];
-	struct stat st;
 
-	sprintf(str, "/sys/class/gpio/export/gpio%d", gpio);
-	if (stat(str, &st)) {
+	sprintf(str, "/sys/class/gpio/gpio%d", gpio);
+	if (!file_exists(str)) {
 		sprintf(str, "echo %d > /sys/class/gpio/export", gpio);
 		if (system(str))
 			ERROR("gpio_conf %d failed\n", gpio);
