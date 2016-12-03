@@ -6,8 +6,16 @@ CFLAGS = -g -O2 -Wall -Wstrict-prototypes -Wno-unused-function -Wno-unused-varia
 
 CFLAGS += -I ../app
 
-CFLAGS += -DREAL_TARGET
+ifdef RADIATOR1
+CFLAGS += -DCONFIG_RADIATOR1 # TPLink with DS1820
+endif
+ifdef RADIATOR2
 CFLAGS += -DCONFIG_RADIATOR2 # Raspberry PI 3 with SHT1x
+endif
+ifdef SIMU
+CFLAGS += -DCONFIG_SIMU
+endif
+
 
 BIN = server toggle_mode index.cgi
 

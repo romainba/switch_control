@@ -14,8 +14,8 @@
 
 #define STATUSTIMEOUT 5
 
-Client::Client(QGridLayout *layout, QString *name, int devType, int pos, QString *addr, int port)
-    : name(name), devType(devType), pos(pos), addr(addr), port(port)
+Client::Client(QGroupBox *box, int devType, int pos, QString *addr, int port)
+    : devType(devType), pos(pos), addr(addr), port(port)
 {
     /* connect socket to the server */
     tcpSocket = new QTcpSocket(this);
@@ -39,7 +39,7 @@ Client::Client(QGridLayout *layout, QString *name, int devType, int pos, QString
     tempThresLabel = new QLabel(tr("Max"));
     tempThresLabel->setBuddy(tempThresSlider);
 
-    tempLabel = new QLabel(*name + tr("-"));
+    tempLabel = new QLabel(tr("-"));
     tempThresValueLabel = new QLabel(tr("-"));
     tempThresValueLabel->setBuddy(tempThresSlider);
 
@@ -54,14 +54,18 @@ Client::Client(QGridLayout *layout, QString *name, int devType, int pos, QString
             this, SLOT(tempThresChanged()));
     connect(switchButton, SIGNAL(clicked()), this, SLOT(switchToggled()));
 
-    layout->addWidget(tempLabel, 2*pos, 0, 1, 1);
-    layout->addWidget(buttonBox, 2*pos, 1, 1, 2);
+    QGridLayout *layout = new QGridLayout;
 
-    layout->addWidget(tempThresLabel, 2*pos + 1, 0);
-    layout->addWidget(tempThresSlider, 2*pos + 1, 1);
-    layout->addWidget(tempThresValueLabel, 2*pos + 1, 2);
+    layout->addWidget(tempLabel, 1, 0);
+    layout->addWidget(buttonBox, 1, 2);
 
-    qDebug() << "client" << pos << "created";
+    layout->addWidget(tempThresLabel, 2, 0);
+    layout->addWidget(tempThresSlider, 2, 1);
+    layout->addWidget(tempThresValueLabel, 2, 2);
+
+    box->setLayout(layout);
+
+    qDebug() << "client" << pos << "created " << *addr << ":" << port;
     statusTimer = 0;
 }
 
@@ -106,13 +110,6 @@ static int cmdDataSize[CMD_NUM] = {
     [CMD_GET_STATUS] = 0
 };
 
-static int respDataSize[CMD_NUM] = {
-    [CMD_SET_SW_POS] = 0,
-    [CMD_TOGGLE_MODE] = 0,
-    [CMD_SET_TEMP] = 0,
-    [CMD_GET_STATUS] = sizeof(union status)
-};
-
 void delay( int millisecondsToWait )
 {
     QTime dieTime = QTime::currentTime().addMSecs( millisecondsToWait );
@@ -138,9 +135,9 @@ void Client::sendCmd(int cmd, int *data)
 
     out << c;
     if (cmdDataSize[cmd])
-        qDebug() << "sendCmd" << cmd << "len" << cmdDataSize[cmd] << "data" << data[0];
+        qDebug() << port << "send Cmd" << cmd << "len" << cmdDataSize[cmd] << "data" << data[0];
     else
-        qDebug() << "sendCmd" << cmd;
+        qDebug() << port << "sendCmd" << cmd;
 }
 
 void Client::readResp()
@@ -158,7 +155,7 @@ void Client::readResp()
 
     in >> resp.header;
 
-    qDebug() << "resp" << resp.header.id <<
+    qDebug() << port << "got msg" << resp.header.id <<
                 "status" << resp.header.status <<
                 "len" << resp.header.len;
 
@@ -167,15 +164,15 @@ void Client::readResp()
 
     in >> resp;
 
-    if (resp.header.len != respDataSize[resp.header.id]) {
-        qDebug() << "Cmd" << resp.header.id << "with invalid len " << resp.header.len;
-        return;
-    }
-
     switch (resp.header.id) {
     case CMD_GET_STATUS: {
 
-        memcpy(&status, &resp.status, devices_resp_size[devType]);
+        if (resp.header.len != dev_type_resp_size[devType]) {
+            qDebug() << "Cmd" << resp.header.id << "with invalid len " << resp.header.len;
+            return;
+        }
+
+        memcpy(&status, &resp.status, dev_type_resp_size[devType]);
 
         switch (devType) {
         case RADIATOR1: {
@@ -187,7 +184,7 @@ void Client::readResp()
     
             tempThresSlider->setValue(s->tempThres/1000.0);
 
-            tempLabel->setText(*name + " " + str + " " +
+            tempLabel->setText(str + " " +
                                QString::number(s->temp / 1000.0, 'f', 1) + "°C");
             qDebug() << "  temp" << s->temp / 1000.0 << "thres" <<
                         s->tempThres / 1000.0;
@@ -203,7 +200,7 @@ void Client::readResp()
     
             tempThresSlider->setValue(s->tempThres/1000.0);
 
-            tempLabel->setText(*name + " " + str + " " +
+            tempLabel->setText(str + " " +
                                QString::number(s->temp / 1000.0, 'f', 1) + "°C humidity " +
                                QString::number(s->humidity / 1000.0, 'f', 1) + "%");
             qDebug() << "  temp" << s->temp / 1000.0 << "thres" <<

@@ -64,29 +64,22 @@ struct resp {
     union status status;
 };
 
-#define NUM_DEVICES 2
+#define NUM_DEV_TYPE 2
 
-enum {
+enum dev_type {
     RADIATOR1,
     RADIATOR2
 };
 
-static char devices_name[NUM_DEVICES][15] = {
+static char dev_type_name[NUM_DEV_TYPE][15] = {
     "radiator1", /* struct ds1820_status */
     "radiator2" /* struct sht1x_status */
 };
 
-static int devices_resp_size[NUM_DEVICES] = {
+static int dev_type_resp_size[NUM_DEV_TYPE] = {
     sizeof(struct radiator1_status),
     sizeof(struct radiator2_status)
 };
 
-#ifdef CONFIG_RADIATOR1
-static int dev_type = RADIATOR1;
-#endif
-
-#ifdef CONFIG_RADIATOR2
-static int dev_type = RADIATOR2;
-#endif
 
 #endif // SWITCH_H

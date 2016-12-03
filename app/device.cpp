@@ -25,17 +25,17 @@ Device::Device(QWidget *parent)
     sendMulticastMsg("discover");
     qDebug() << "sent discover, waiting answer";
 
-    mainLayout = new QGridLayout;
+    mainLayout = new QVBoxLayout;
     mainLayout->setSizeConstraint(QLayout::SetFixedSize);
 
     qDebug() << QDesktopWidget().availableGeometry(this).size();
     //resize(QDesktopWidget().availableGeometry(this).size());
 }
 
-class QGridLayout *Device::getLayout(void)
-{
-    return mainLayout;
-}
+//class QGridLayout *Device::getLayout(void)
+//{
+//    return mainLayout;
+//}
 
 /*
  * Send one multicast message
@@ -72,11 +72,11 @@ void Device::processPendingDatagrams()
 
         QStringList::iterator it = list.begin();
 
-        for (devType = 0; devType < NUM_DEVICES; devType++) {
-            if (*it == QString(devices_name[devType]))
+        for (devType = 0; devType < NUM_DEV_TYPE; devType++) {
+            if (*it == QString(dev_type_name[devType]))
                 break;
         }
-        if (devType == NUM_DEVICES) {
+        if (devType == NUM_DEV_TYPE) {
             qDebug() << "device not supported";
             continue;
         }
@@ -93,13 +93,16 @@ void Device::processPendingDatagrams()
                     busy = 1;
         }
         if (busy) {
-            qDebug() << "busy" << serverAddr->toStdString().c_str() << ":" << serverPort;
+            qDebug() << "busy" << *serverAddr + ":" + QString::number(serverPort);
             continue;
         }
 
-        qDebug() << "radiator" << serverAddr->toStdString().c_str() << ":" << serverPort << ":" << name;
+        qDebug() << "radiator" << *serverAddr + ":" + QString::number(serverPort) << *name;
 
-        client = new Client(mainLayout, name, devType, clientList.size(), serverAddr, serverPort);
+        QGroupBox *box = new QGroupBox(*name + " - " + *serverAddr + ":" + QString::number(serverPort));
+        client = new Client(box, devType, clientList.size(), serverAddr, serverPort);
+        mainLayout->addWidget(box);
+
         setLayout(mainLayout);
 
         clientList.append(client);

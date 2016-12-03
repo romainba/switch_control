@@ -74,7 +74,9 @@ static inline void switch_off(int *active)
 #endif
 #if (defined CONFIG_RADIATOR2)
 #endif
+#ifdef GPIO_SW
 	gpio_set(GPIO_SW, 0);
+#endif
 	*active = 0;
 }
 
@@ -88,7 +90,9 @@ static inline void switch_on(int *active)
 #if (defined CONFIG_RADIATOR1)
 	led_set(LED2, 255);
 #endif
+#ifdef GPIO_SW
 	gpio_set(GPIO_SW, 255);
+#endif
 	*active = 1;
 }
 
@@ -165,7 +169,7 @@ static int proc_switch(struct config *config)
 	sigemptyset(&waitset);
 	sigaddset(&waitset, SIGUSR1);
 
-#ifdef REAL_TARGET
+#ifdef GPIO_SW
 	gpio_conf(GPIO_SW, GPIO_MODE_OUT);
 #endif
 	config->active = 1;
@@ -225,7 +229,7 @@ static int handle_sess(int s, struct config *config)
 			request = cmd.u.sw_pos /* 0 off, 1 on */ ? REQ_ON : REQ_OFF;
 			break;
 		case CMD_GET_STATUS: {
-#ifdef CONFIG_RADIATOR1
+#if (defined CONFIG_RADIATOR1) || (defined CONFIG_SIMU)
 			resp.header.len = sizeof(struct radiator1_status);
 			resp.status.rad1.temp = config->temp;
 			resp.status.rad1.tempThres = config->temp_thres;
@@ -302,7 +306,7 @@ int main(int argc, char *argv[])
 	discover_pid = ret;
 
 	/* shared memory between all child processes */
-	shmid = shmget(SHM_KEY, sizeof(struct config), 0644 | IPC_CREAT);
+	shmid = shmget(SHM_KEY + port, sizeof(struct config), 0644 | IPC_CREAT);
 	if (shmid < 0) {
 		ERROR("shmget failed: %s", strerror(errno));
 		goto error;

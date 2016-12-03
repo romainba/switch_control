@@ -11,7 +11,7 @@ class Client : public QDialog
     Q_OBJECT
 
 public:
-    Client(class QGridLayout *layout = 0, QString *name = 0, int devType = 0,
+    Client(class QGroupBox *box = 0, int devType = 0,
            int pos = 0, QString *addr = 0, int port = 0);
 
     QString *getAddr();
@@ -48,7 +48,6 @@ private:
     int statusTimer;
     union status status;
 
-    QString *name;
     int devType;
     int pos;
     QString *addr;

@@ -95,7 +95,7 @@ static int send_multicast(char *addr, int port, char *msg, int len)
 int discover_service(char *if_name, char *name, int port)
 {
 	char *buffer, buf[100], msg[50];
-	int ret, sock, s, cnt, optval = 1, t, i;
+	int ret, sock, s, cnt, optval = 1, t, i, dev_type;
 	unsigned int sin_len;
 	struct sockaddr_in sin;
 	struct ip_mreq mreq;
@@ -107,7 +107,15 @@ int discover_service(char *if_name, char *name, int port)
 		DEBUG("%s interface not found", if_name);
 		return 1;
 	}
-	sprintf(buf, "%s:%s:%d:%s", (char *)(devices_name + dev_type), buffer, port, name);
+
+#if (defined CONFIG_RADIATOR1) || (defined CONFIG_SIMU)
+	dev_type = RADIATOR1;
+#endif
+#ifdef CONFIG_RADIATOR2
+	dev_type = RADIATOR2;
+#endif
+
+	sprintf(buf, "%s:%s:%d:%s", (char *)(dev_type_name + dev_type), buffer, port, name);
 	free(buffer);
 
 	sock = socket(AF_INET, SOCK_DGRAM, 0);
