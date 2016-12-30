@@ -34,7 +34,18 @@ void gpio_dir(int gpio, int mode)
 		ERROR("gpio_dir %d failed\n", gpio);
 }
 
-void gpio_conf(int gpio, int mode)
+void gpio_edge(int gpio, char *edge)
+{
+	char str[50];
+
+	sprintf(str, "echo %s > /sys/class/gpio/gpio%d/edge",
+		edge, gpio);
+	if (system(str))
+		ERROR("gpio_dir %d failed\n", gpio);
+}
+
+
+void gpio_conf(int gpio, int mode, char *edge)
 {
 	char str[50];
 
@@ -45,6 +56,8 @@ void gpio_conf(int gpio, int mode)
 			ERROR("gpio_conf %d failed\n", gpio);
 	}
 	gpio_dir(gpio, mode);
+	if (edge)
+	  gpio_edge(gpio, edge);
 }
 
 void gpio_set(int gpio, int value)

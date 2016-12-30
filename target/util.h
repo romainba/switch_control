@@ -18,7 +18,7 @@ enum {
 	GPIO_MODE_OUT
 };
 
-void gpio_conf(int gpio, int mode);
+void gpio_conf(int gpio, int mode, char *edge);
 void gpio_dir(int gpio, int mode);
 void gpio_set(int gpio, int value);
 int gpio_get(int gpio);

@@ -48,8 +48,8 @@ void SHT1x_Crc_Check(unsigned char value)
 
 void SHT1x_InitPins( void )
 {
-	gpio_conf(RPI_GPIO_SHT1x_SCK, GPIO_MODE_OUT);
-	gpio_conf(RPI_GPIO_SHT1x_DATA, GPIO_MODE_IN);
+  gpio_conf(RPI_GPIO_SHT1x_SCK, GPIO_MODE_OUT, NULL);
+  gpio_conf(RPI_GPIO_SHT1x_DATA, GPIO_MODE_IN, NULL);
 }
 
 void SHT1x_Reset()

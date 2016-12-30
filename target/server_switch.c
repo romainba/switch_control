@@ -13,23 +13,20 @@
 #include <sys/shm.h>
 #include <poll.h>
 #include <signal.h>
+#include <fcntl.h>
 
 #include "util.h"
 #include <switch.h>
 #include "discover.h"
 
-#ifdef CONFIG_RADIATOR1
-#include "ds1820.h"
-#endif
-
-#ifdef CONFIG_RADIATOR2
-#include "RPi_SHT1x.h"
-#endif
-
 #define TEMPTHRES 25
 #define DEFAULT_TEMP (25 * 1000) /* degres */
 
+/*
+ * Radiator 1
+ */
 #ifdef CONFIG_RADIATOR1
+#include "ds1820.h"
 #define GPIO_SW 7
 
 /* led in /sys/class/leds/ */
@@ -39,10 +36,19 @@
 #define LED5 "tp-link:green:lan"  /* gpio 17 */
 #endif
 
+/*
+ * Radiator 2
+ */
 #ifdef CONFIG_RADIATOR2
-#define GPIO_SW 3
+#include "RPi_SHT1x.h"
+//#define GPIO_SW  17
+#define GPIO_LED 2
+#define GPIO_BUTTON 17
 #endif
 
+/*
+ * Common structure
+ */
 struct config {
 #ifdef CONFIG_RADIATOR1
 	char dev[20];
@@ -73,6 +79,7 @@ static inline void switch_off(int *active)
 	led_set(LED2, 0);
 #endif
 #if (defined CONFIG_RADIATOR2)
+	gpio_set(GPIO_LED, 0);
 #endif
 #ifdef GPIO_SW
 	gpio_set(GPIO_SW, 0);
@@ -89,6 +96,9 @@ static inline void switch_on(int *active)
 
 #if (defined CONFIG_RADIATOR1)
 	led_set(LED2, 255);
+#endif
+#if (defined CONFIG_RADIATOR2)
+	gpio_set(GPIO_LED, 1);
 #endif
 #ifdef GPIO_SW
 	gpio_set(GPIO_SW, 255);
@@ -142,6 +152,7 @@ static inline void get_measure(struct config *config)
 
 static void update_switch(struct config *config, int request)
 {
+	DEBUG("requested %d request %d\n", config->requested, request);
 	if (request) {
 		int v = (request == REQ_ON);
 		if (v != config->requested)
@@ -149,7 +160,7 @@ static void update_switch(struct config *config, int request)
 	}
 
 	get_measure(config);
-
+	
 	if (config->requested) {
 		if (config->temp > config->temp_thres)
 			switch_off(&config->active);
@@ -162,7 +173,7 @@ static void update_switch(struct config *config, int request)
 static int proc_switch(struct config *config)
 {
 	int ret;
-	struct timespec timeout = { .tv_sec = 10, .tv_nsec = 0 };
+	struct timespec timeout = { .tv_sec = 5, .tv_nsec = 0 };
 	sigset_t waitset;
 	siginfo_t info;
 
@@ -170,7 +181,10 @@ static int proc_switch(struct config *config)
 	sigaddset(&waitset, SIGUSR1);
 
 #ifdef GPIO_SW
-	gpio_conf(GPIO_SW, GPIO_MODE_OUT);
+	gpio_conf(GPIO_SW, GPIO_MODE_OUT, NULL);
+#endif
+#ifdef CONFIG_RADIATOR2
+	gpio_conf(GPIO_LED, GPIO_MODE_OUT, NULL);
 #endif
 	config->active = 1;
 	switch_off(&config->active);
@@ -187,21 +201,59 @@ static int proc_switch(struct config *config)
 			} else
 				break;
 		}
+		DEBUG("sigusr %d\n", info.si_value.sival_int);
 		update_switch(config, info.si_value.sival_int);
 	}
 	DEBUG("%s done", __func__);
 	return 0;
 }
 
+#ifdef GPIO_BUTTON
+static int proc_button(struct config *config)
+{
+	struct pollfd fds = { .events = POLLPRI };
+	int ret;
+	char str[50];
+	union sigval sv;
+
+	gpio_conf(GPIO_BUTTON, GPIO_MODE_IN, "rising");
+
+	sprintf(str, "/sys/class/gpio/gpio%d/value", GPIO_BUTTON);
+	fds.fd = open(str, O_RDONLY | O_NONBLOCK);
+	if (fds.fd < 0) {
+		ERROR("gpio open failed\n");
+		return -1;
+	}
+	
+	while (1) {
+		ret = poll(&fds, 1, -1);
+		if (ret < 0) {
+			ERROR("poll error %s", strerror(errno));
+			break;
+		}
+
+		lseek(fds.fd, 0, SEEK_SET);
+		ret = read(fds.fd, str, sizeof(str));
+
+		/* toggle switch */
+		sv.sival_int = config->requested ? REQ_OFF : REQ_ON;
+		if (sigqueue(config->switch_pid, SIGUSR1, sv))
+			ERROR("sigqueue error %s", strerror(errno));
+	}
+	return -1;
+}
+#endif
+
 static int handle_sess(int s, struct config *config)
 {
 	struct pollfd fds = { .fd = s, .events = POLLIN | POLLERR };
 	struct resp resp;
 	struct cmd cmd;
-	int ret, request;
+	int ret, request, n;
 	union sigval sv;
 
 	while (1) {
+	  
 		ret = poll(&fds, 1, -1);
 		if (ret < 0) {
 			ERROR("poll error %s", strerror(errno));
@@ -281,7 +333,7 @@ int main(int argc, char *argv[])
 	struct config *config = NULL;
 	char *buffer;
 	int port = DEFAULT_PORT;
-
+	
 	if (argc < 2 || argc > 4) {
 		printf("usage: %s <name> [<ethernet if> [<port>]]\n", argv[0]);
 		exit(1);
@@ -306,7 +358,7 @@ int main(int argc, char *argv[])
 	discover_pid = ret;
 
 	/* shared memory between all child processes */
-	shmid = shmget(SHM_KEY + port, sizeof(struct config), 0644 | IPC_CREAT);
+	shmid = shmget(SHM_KEY, sizeof(struct config), 0644 | IPC_CREAT);
 	if (shmid < 0) {
 		ERROR("shmget failed: %s", strerror(errno));
 		goto error;
@@ -331,6 +383,19 @@ int main(int argc, char *argv[])
 	SHT1x_InitPins();
 	SHT1x_Reset();
 #endif
+
+#ifdef GPIO_BUTTON
+	ret = fork();
+	if (ret < 0)
+		goto error;
+	if (ret == 0) {
+		if (proc_button(config)) {
+			ERROR("proc_button failed");
+			exit(1);
+		}
+		exit(0);
+	}
+#endif	
 
 	ret = fork();
 	if (ret < 0)

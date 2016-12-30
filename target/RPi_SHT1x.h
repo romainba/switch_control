@@ -24,8 +24,8 @@ This is a derivative work based on
 #define SHT1x_DELAY usleep(2)
 
 // Define the Raspberry Pi GPIO Pins for the SHT1x
-#define RPI_GPIO_SHT1x_SCK  23
-#define RPI_GPIO_SHT1x_DATA 18
+#define RPI_GPIO_SHT1x_SCK  3
+#define RPI_GPIO_SHT1x_DATA 4
 
 /* Definitions of all known SHT1x commands */
 #define SHT1x_MEAS_T	0x03			// Start measuring of temperature.
