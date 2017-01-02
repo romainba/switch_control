@@ -19,6 +19,7 @@
 #include <switch.h>
 #include "discover.h"
 
+#define MEASURE_PERIOD 5
 #define TEMPTHRES 25
 #define DEFAULT_TEMP (25 * 1000) /* degres */
 
@@ -106,51 +107,56 @@ static inline void switch_on(int *active)
 	*active = 1;
 }
 
-static inline void get_measure(struct config *config)
+static int proc_measure(struct config *config)
 {
 	config->temp = 23 * 1000;
 
-	DEBUG("");
+	while (1) {
 
 #ifdef CONFIG_RADIATOR1
-	if (ds1820_get_temp(config->dev, &config->temp))
-		ERROR("sensor reading failed");
+		if (ds1820_get_temp(config->dev, &config->temp)) {
+			ERROR("sensor reading failed");
+			return 1;
+		}
 #endif
+
 #ifdef CONFIG_RADIATOR2
-	unsigned short int val;
-	float humi, temp;
+		unsigned short int val;
+		float humi, temp;
 
-	if (!SHT1x_Measure_Start(SHT1x_MEAS_T)) {
-		ERROR("SHT1 measure start failed");
-		return;
-	}
+		if (!SHT1x_Measure_Start(SHT1x_MEAS_T)) {
+			ERROR("SHT1 measure start failed");
+			return 1;
+		}
 
-	if (!SHT1x_Get_Measure_Value(&val)) {
-		ERROR("SHT1 measure get failed");
-		return;
-	}
-	temp = (float)val;
+		if (!SHT1x_Get_Measure_Value(&val)) {
+			ERROR("SHT1 measure get failed");
+			return 1;
+		}
+		temp = (float)val;
 
-	// Request Humidity Measurement
-	if (!SHT1x_Measure_Start(SHT1x_MEAS_RH)) {
-		ERROR("SHT1 measure start failed");
-		return;
-	}
+		// Request Humidity Measurement
+		if (!SHT1x_Measure_Start(SHT1x_MEAS_RH)) {
+			ERROR("SHT1 measure start failed");
+			return 1;
+		}
 
-	// Read Humidity measurement
-	if (!SHT1x_Get_Measure_Value(&val)) {
-		ERROR("SHT1 measure get failed");
-		return;
-	}
-	humi = (float)val;
+		// Read Humidity measurement
+		if (!SHT1x_Get_Measure_Value(&val)) {
+			ERROR("SHT1 measure get failed");
+			return 1;
+		}
+		humi = (float)val;
 
-	SHT1x_Calc(&humi, &temp);
-	printf("temp %0.2f, humidity %0.2f\n", temp, humi);
+		SHT1x_Calc(&humi, &temp);
+		printf("temp %0.2f, humidity %0.2f\n", temp, humi);
 
-	config->temp = (int)(temp * 1000.0);
-	config->humidity = (int)(humi * 1000.0);
+		config->temp = (int)(temp * 1000.0);
+		config->humidity = (int)(humi * 1000.0);
 #endif
-	DEBUG("done");
+		sleep(MEASURE_PERIOD);
+	}
+	return 0;
 }
 
 static void update_switch(struct config *config, int request)
@@ -161,8 +167,6 @@ static void update_switch(struct config *config, int request)
 		if (v != config->requested)
 			config->requested = v;
 	}
-
-	get_measure(config);
 
 	if (config->requested) {
 		if (config->temp > config->temp_thres)
@@ -399,6 +403,18 @@ int main(int argc, char *argv[])
 		exit(0);
 	}
 #endif
+
+	/* lauch proc_measure process */
+	ret = fork();
+	if (ret < 0)
+		goto error;
+	if (ret == 0) {
+		if (proc_measure(config)) {
+			ERROR("proc_measure failed");
+			exit(1);
+		}
+		exit(0);
+	}
 
 	/* lauch proc_switch process */
 	ret = fork();
