@@ -180,7 +180,7 @@ static void update_switch(struct config *config, int request)
 static int proc_switch(struct config *config)
 {
 	int ret;
-	struct timespec timeout = { .tv_sec = 1, .tv_nsec = 0 };
+	//struct timespec timeout = { .tv_sec = 1, .tv_nsec = 0 };
 	sigset_t waitset;
 	siginfo_t info;
 
@@ -200,7 +200,7 @@ static int proc_switch(struct config *config)
 		exit(1);
 
 	while (1) {
-		ret = sigtimedwait(&waitset, &info, &timeout);
+		ret = sigwaitinfo(&waitset, &info);
 		if (ret < 0) {
 			if (errno == EAGAIN) {
 				update_switch(config, 0);
