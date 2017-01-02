@@ -180,7 +180,6 @@ static void update_switch(struct config *config, int request)
 static int proc_switch(struct config *config)
 {
 	int ret;
-	//struct timespec timeout = { .tv_sec = 1, .tv_nsec = 0 };
 	sigset_t waitset;
 	siginfo_t info;
 
@@ -251,7 +250,7 @@ static int proc_button(struct config *config)
 }
 #endif
 
-static int handle_sess(int s, struct config *config)
+static int proc_socket(int s, struct config *config)
 {
 	struct pollfd fds = { .fd = s, .events = POLLIN | POLLERR };
 	struct resp resp;
@@ -260,6 +259,7 @@ static int handle_sess(int s, struct config *config)
 	union sigval sv;
 
 	while (1) {
+		/* wait event */
 		ret = poll(&fds, 1, -1);
 		if (ret < 0) {
 			ERROR("poll error %s", strerror(errno));
@@ -319,6 +319,9 @@ static int handle_sess(int s, struct config *config)
 			ERROR("write error %s", strerror(errno));
 			break;
 		}
+
+		if (!request)
+			continue;
 
 		sv.sival_int = request;
 		if (sigqueue(config->switch_pid, SIGUSR1, sv))
@@ -431,6 +434,12 @@ int main(int argc, char *argv[])
 
 	sock = socket(AF_INET, SOCK_STREAM, 0);
 
+	ret = 1;
+	if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &ret, sizeof(int)) < 0) {
+		ERROR("setsockopt(SO_REUSEADDR) failed");
+		goto error;
+	}
+
 	sin.sin_family = AF_INET;
 	sin.sin_addr.s_addr = INADDR_ANY;
 	sin.sin_port = htons(port);
@@ -447,12 +456,12 @@ int main(int argc, char *argv[])
 			break;
 		}
 
-		/* lauch handle_sess process */
+		/* lauch proc_socket process */
 		pid = fork();
 		if (pid < 0)
 			ERROR("fork: %s",  strerror(errno));
 		else if (pid == 0) {
-			handle_sess(s, config);
+			proc_socket(s, config);
 			exit(0);
 		}
 

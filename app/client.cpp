@@ -15,7 +15,7 @@
 #define STATUSTIMEOUT 5
 
 Client::Client(QGroupBox *box, int devType, int pos, QString *addr, int port)
-    : devType(devType), pos(pos), addr(addr), port(port)
+    : box(box), devType(devType), pos(pos), addr(addr), port(port)
 {
     /* connect socket to the server */
     tcpSocket = new QTcpSocket(this);
@@ -54,7 +54,7 @@ Client::Client(QGroupBox *box, int devType, int pos, QString *addr, int port)
             this, SLOT(tempThresChanged()));
     connect(switchButton, SIGNAL(clicked()), this, SLOT(switchToggled()));
 
-    QGridLayout *layout = new QGridLayout;
+    layout = new QGridLayout;
 
     layout->addWidget(tempLabel, 0, 0, 1, 2);
     layout->addWidget(buttonBox, 0, 2, 1, 1, Qt::AlignRight);
@@ -67,6 +67,26 @@ Client::Client(QGroupBox *box, int devType, int pos, QString *addr, int port)
 
     qDebug() << "client" << pos << "created " << *addr << ":" << port;
     statusTimer = 0;
+}
+
+Client::~Client()
+{
+    if (!layout)
+        return;
+
+    qDebug() << "client: layout count" << layout->count();
+
+    layout->removeWidget(tempThresValueLabel);
+    layout->removeWidget(tempThresSlider);
+    layout->removeWidget(tempThresLabel);
+    layout->removeWidget(buttonBox);
+    layout->removeWidget(tempLabel);
+
+    delete tempThresValueLabel;
+    delete tempThresSlider;
+    delete tempThresLabel;
+    delete buttonBox;
+    delete tempLabel;
 }
 
 QString *Client::getAddr(void)
@@ -249,6 +269,8 @@ void Client::switchToggled()
     sendCmd(CMD_SET_SW_POS, &sw_pos);
 
     switchButton->setText(sw_pos ? "Switch OFF" : "Switch ON");
+
+    requestStatus();
 }
 
 void Client::enable()
@@ -278,13 +300,6 @@ void Client::socketStateChanged(QAbstractSocket::SocketState state)
     qDebug() << "tcpSocket" << state;
     switch (state) {
     case QAbstractSocket::UnconnectedState:
-        tcpSocket->abort();
-        tcpSocket->close();
-
-        delay(1000);
-
-        qDebug() << "reconnecting";
-        tcpSocket->connectToHost(addr->toStdString().c_str(), port);
         break;
 
     case QAbstractSocket::ConnectedState:
@@ -298,32 +313,18 @@ void Client::socketStateChanged(QAbstractSocket::SocketState state)
 void Client::socketError(QAbstractSocket::SocketError error)
 {
     qDebug() << "socketerror" << error;
-    switch (error) {
-    case QAbstractSocket::RemoteHostClosedError:
-        break;
-    case QAbstractSocket::HostNotFoundError:
-        QMessageBox::information(this, tr(APP_NAME),
-                                 tr("The host was not found. Please check the "
-                                    "host name and port settings."));
-        break;
-    case QAbstractSocket::ConnectionRefusedError:
-        QMessageBox::information(this, tr(APP_NAME),
-                                 tr("The connection was refused by the peer. "
-                                    "Make sure the server is running, "
-                                    "and check that the host name and port "
-                                    "settings are correct."));
-        break;
-    default:
-        QMessageBox::information(this, tr(APP_NAME),
-                                 tr("The following error occurred: %1.")
-                                 .arg(tcpSocket->errorString()));
+
+    if (statusTimer) {
+        killTimer(statusTimer);
+        qDebug() << "client: killed timer";
     }
+
+    tcpSocket->disconnectFromHost();
     tcpSocket->abort();
     tcpSocket->close();
+    qDebug() << "client: closed socket";
 
-    delay(1000);
-    qDebug() << "reconnecting";
-    tcpSocket->connectToHost(addr->toStdString().c_str(), port);
+    emit deleteRequest(pos);
 }
 
 void Client::timerEvent(QTimerEvent *e)

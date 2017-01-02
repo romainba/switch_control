@@ -3,6 +3,8 @@
 #include "device.h"
 #include "client.h"
 
+#define DEVICETIMEOUT 10 /* sec */
+
 Device::Device(QWidget *parent)
 	:   QDialog(parent)
 {
@@ -22,14 +24,14 @@ Device::Device(QWidget *parent)
 
     connect(udpSocket, SIGNAL(readyRead()), this, SLOT(processPendingDatagrams()));
 
-    sendMulticastMsg("discover");
-    qDebug() << "sent discover, waiting answer";
-
     mainLayout = new QVBoxLayout;
     mainLayout->setSizeConstraint(QLayout::SetFixedSize);
 
     qDebug() << QDesktopWidget().availableGeometry(this).size();
     //resize(QDesktopWidget().availableGeometry(this).size());
+
+    sendMulticastMsg("discover");
+    statusTimer = startTimer(DEVICETIMEOUT * 1000);
 }
 
 //class QGridLayout *Device::getLayout(void)
@@ -51,6 +53,21 @@ void Device::sendMulticastMsg(QByteArray datagram)
     s->close();
 }
 
+void Device::deleteClient(int pos)
+{
+    class Client *client = clientList.at(pos);
+    QGroupBox *box = client->box;
+
+    qDebug() << "dev: delete Client" << pos << *client->getAddr() << ":" << client->getPort();
+
+    mainLayout->removeWidget(box);
+
+    setLayout(mainLayout);
+
+    clientList.removeAt(pos);
+    client->deleteLater();
+}
+
 /*
  * Multicast answer reception
  */
@@ -61,7 +78,7 @@ void Device::processPendingDatagrams()
         class QByteArray datagram;
         class QString *serverAddr, *name;
         class Client *client;
-        int serverPort, busy = 0, devType;
+        int serverPort, already = 0, devType;
 
         datagram.resize(udpSocket->pendingDatagramSize());
         udpSocket->readDatagram(datagram.data(), datagram.size());
@@ -85,18 +102,20 @@ void Device::processPendingDatagrams()
         serverAddr = new QString(*it++);
         serverPort = it->toInt();
         it++;
-        name = new QString(*it);
 
-        for (int i = 0; i < clientList.size(); i++) {
-               class Client *c = clientList.at(i);
-               if (c->getAddr() == serverAddr && c->getPort() == serverPort)
-                    busy = 1;
+        foreach(class Client *c, clientList) {
+            if (*c->getAddr() == *serverAddr && c->getPort() == serverPort) {
+                 already = 1;
+                 break;
+            }
         }
-        if (busy) {
-            qDebug() << "busy" << *serverAddr + ":" + QString::number(serverPort);
+        if (already) {
+            qDebug() << "already" << *serverAddr + ":" + QString::number(serverPort);
+            delete serverAddr;
             continue;
         }
 
+        name = new QString(*it);
         qDebug() << "radiator" << *serverAddr + ":" + QString::number(serverPort) << *name;
 
         QGroupBox *box = new QGroupBox(*name + " - " + *serverAddr + ":" + QString::number(serverPort));
@@ -106,5 +125,14 @@ void Device::processPendingDatagrams()
         setLayout(mainLayout);
 
         clientList.append(client);
+        connect(client, SIGNAL(deleteRequest(int)), this, SLOT(deleteClient(int)));
    }
+}
+
+void Device::timerEvent(QTimerEvent *e)
+{
+    if (e->timerId() == statusTimer) {
+        sendMulticastMsg("discover");
+        qDebug() << "sent discover, waiting answer";
+    }
 }

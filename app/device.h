@@ -23,6 +23,9 @@ private slots:
     void processPendingDatagrams();
     void sendMulticastMsg(QByteArray datagram);
 
+    void deleteClient(int pos);
+    void timerEvent(QTimerEvent *e);
+
 private:
     class QUdpSocket *udpSocket;
     class QHostAddress groupAddr;
@@ -30,7 +33,7 @@ private:
     class QVBoxLayout *mainLayout;
 
     QList<class Client *> clientList;
-
+    int statusTimer;
 };
 
 #endif // DEVICE_H

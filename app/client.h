@@ -13,9 +13,14 @@ class Client : public QDialog
 public:
     Client(class QGroupBox *box = 0, int devType = 0,
            int pos = 0, QString *addr = 0, int port = 0);
+    ~Client();
 
     QString *getAddr();
     int getPort();
+    class QGroupBox *box;
+
+signals:
+    void deleteRequest(int pos);
 
 private slots:
     void readResp();
@@ -34,6 +39,8 @@ private slots:
     void timerEvent(QTimerEvent *e);
 
 private:
+    class QGridLayout *layout;
+
     class QLabel *tempThresLabel;
     class QLabel *tempThresValueLabel;
     class QSlider *tempThresSlider;
