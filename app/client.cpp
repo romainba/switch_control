@@ -56,12 +56,12 @@ Client::Client(QGroupBox *box, int devType, int pos, QString *addr, int port)
 
     QGridLayout *layout = new QGridLayout;
 
-    layout->addWidget(tempLabel, 1, 0);
-    layout->addWidget(buttonBox, 1, 2);
+    layout->addWidget(tempLabel, 0, 0, 1, 2);
+    layout->addWidget(buttonBox, 0, 2, 1, 1, Qt::AlignRight);
 
-    layout->addWidget(tempThresLabel, 2, 0);
-    layout->addWidget(tempThresSlider, 2, 1);
-    layout->addWidget(tempThresValueLabel, 2, 2);
+    layout->addWidget(tempThresLabel, 1, 0, 1, 1);
+    layout->addWidget(tempThresSlider, 1, 1, 1, 1);
+    layout->addWidget(tempThresValueLabel, 1, 2, 1, 1, Qt::AlignCenter);
 
     box->setLayout(layout);
 

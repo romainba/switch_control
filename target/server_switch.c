@@ -110,6 +110,8 @@ static inline void get_measure(struct config *config)
 {
 	config->temp = 23 * 1000;
 
+	DEBUG("");
+
 #ifdef CONFIG_RADIATOR1
 	if (ds1820_get_temp(config->dev, &config->temp))
 		ERROR("sensor reading failed");
@@ -148,6 +150,7 @@ static inline void get_measure(struct config *config)
 	config->temp = (int)(temp * 1000.0);
 	config->humidity = (int)(humi * 1000.0);
 #endif
+	DEBUG("done");
 }
 
 static void update_switch(struct config *config, int request)
@@ -160,7 +163,7 @@ static void update_switch(struct config *config, int request)
 	}
 
 	get_measure(config);
-	
+
 	if (config->requested) {
 		if (config->temp > config->temp_thres)
 			switch_off(&config->active);
@@ -173,7 +176,7 @@ static void update_switch(struct config *config, int request)
 static int proc_switch(struct config *config)
 {
 	int ret;
-	struct timespec timeout = { .tv_sec = 5, .tv_nsec = 0 };
+	struct timespec timeout = { .tv_sec = 1, .tv_nsec = 0 };
 	sigset_t waitset;
 	siginfo_t info;
 
@@ -224,7 +227,7 @@ static int proc_button(struct config *config)
 		ERROR("gpio open failed\n");
 		return -1;
 	}
-	
+
 	while (1) {
 		ret = poll(&fds, 1, -1);
 		if (ret < 0) {
@@ -253,7 +256,6 @@ static int handle_sess(int s, struct config *config)
 	union sigval sv;
 
 	while (1) {
-	  
 		ret = poll(&fds, 1, -1);
 		if (ret < 0) {
 			ERROR("poll error %s", strerror(errno));
@@ -333,7 +335,7 @@ int main(int argc, char *argv[])
 	struct config *config = NULL;
 	char *buffer;
 	int port = DEFAULT_PORT;
-	
+
 	if (argc < 2 || argc > 4) {
 		printf("usage: %s <name> [<ethernet if> [<port>]]\n", argv[0]);
 		exit(1);
@@ -385,6 +387,7 @@ int main(int argc, char *argv[])
 #endif
 
 #ifdef GPIO_BUTTON
+	/* lauch proc_button process */
 	ret = fork();
 	if (ret < 0)
 		goto error;
@@ -395,8 +398,9 @@ int main(int argc, char *argv[])
 		}
 		exit(0);
 	}
-#endif	
+#endif
 
+	/* lauch proc_switch process */
 	ret = fork();
 	if (ret < 0)
 		goto error;
@@ -427,6 +431,7 @@ int main(int argc, char *argv[])
 			break;
 		}
 
+		/* lauch handle_sess process */
 		pid = fork();
 		if (pid < 0)
 			ERROR("fork: %s",  strerror(errno));
