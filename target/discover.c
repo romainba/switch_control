@@ -24,12 +24,16 @@ static char *get_local_ipaddr(char *if_name)
 	struct ifreq ifr;
 
 	fd = socket(AF_INET, SOCK_DGRAM, 0);
+	if (fd < 0) {
+		DEBUG("socket open failed");
+		return NULL;
+	}
 
 	ifr.ifr_addr.sa_family = AF_INET;
 	strncpy(ifr.ifr_name, if_name, IFNAMSIZ-1);
 
 	if (ioctl(fd, SIOCGIFADDR, &ifr)) {
-		DEBUG("SIOCGIFADDR failed: %s", strerror(errno));
+		DEBUG("SIOCGIFADDR %s failed: %s", if_name, strerror(errno));
 		return NULL;
 	}
 	close(fd);

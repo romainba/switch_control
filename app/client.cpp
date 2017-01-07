@@ -130,7 +130,7 @@ static int cmdDataSize[CMD_NUM] = {
     [CMD_GET_STATUS] = 0
 };
 
-void delay( int millisecondsToWait )
+static void delay( int millisecondsToWait )
 {
     QTime dieTime = QTime::currentTime().addMSecs( millisecondsToWait );
     while( QTime::currentTime() < dieTime )
@@ -158,6 +158,45 @@ void Client::sendCmd(int cmd, int *data)
         qDebug() << port << "send Cmd" << cmd << "len" << cmdDataSize[cmd] << "data" << data[0];
     else
         qDebug() << port << "sendCmd" << cmd;
+}
+
+void Client::showStatus()
+{
+    switch (devType) {
+    case RADIATOR1: {
+        struct radiator1_status *s = &status.rad1;
+
+        QString str = s->sw_pos ? "ON" : "OFF";
+
+        switchButton->setText(s->sw_pos ? "Switch OFF" : "Switch ON");
+
+        tempThresSlider->setValue(s->tempThres/1000.0);
+
+        tempLabel->setText(str + " " +
+                           QString::number(s->temp / 1000.0, 'f', 1) + "°C");
+        qDebug() << "  temp" << s->temp / 1000.0 << "thres" <<
+                    s->tempThres / 1000.0;
+
+        break;
+    }
+    case RADIATOR2: {
+        struct radiator2_status *s = &status.rad2;
+
+        QString str = s->sw_pos ? "ON" : "OFF";
+
+        switchButton->setText(s->sw_pos ? "Switch OFF" : "Switch ON");
+
+        tempThresSlider->setValue(s->tempThres/1000.0);
+
+        tempLabel->setText(str + " " +
+                           QString::number(s->temp / 1000.0, 'f', 1) + "°C humidity " +
+                           QString::number(s->humidity / 1000.0, 'f', 1) + "%");
+        qDebug() << "  temp" << s->temp / 1000.0 << "thres" <<
+                    s->tempThres / 1000.0;
+
+        break;
+    }
+    }
 }
 
 void Client::readResp()
@@ -194,41 +233,7 @@ void Client::readResp()
 
         memcpy(&status, &resp.status, dev_type_resp_size[devType]);
 
-        switch (devType) {
-        case RADIATOR1: {
-            struct radiator1_status *s = &resp.status.rad1;
-
-            QString str = s->sw_pos ? "ON" : "OFF";
-    
-            switchButton->setText(s->sw_pos ? "Switch OFF" : "Switch ON");
-    
-            tempThresSlider->setValue(s->tempThres/1000.0);
-
-            tempLabel->setText(str + " " +
-                               QString::number(s->temp / 1000.0, 'f', 1) + "°C");
-            qDebug() << "  temp" << s->temp / 1000.0 << "thres" <<
-                        s->tempThres / 1000.0;
-
-            break;
-        }
-        case RADIATOR2: {
-            struct radiator2_status *s = &resp.status.rad2;
-
-            QString str = s->sw_pos ? "ON" : "OFF";
-    
-            switchButton->setText(s->sw_pos ? "Switch OFF" : "Switch ON");
-    
-            tempThresSlider->setValue(s->tempThres/1000.0);
-
-            tempLabel->setText(str + " " +
-                               QString::number(s->temp / 1000.0, 'f', 1) + "°C humidity " +
-                               QString::number(s->humidity / 1000.0, 'f', 1) + "%");
-            qDebug() << "  temp" << s->temp / 1000.0 << "thres" <<
-                        s->tempThres / 1000.0;
-
-            break;
-        }
-        }
+        showStatus();
 
         if (!switchButton->isEnabled()) {
                 enable();
@@ -268,9 +273,7 @@ void Client::switchToggled()
 
     sendCmd(CMD_SET_SW_POS, &sw_pos);
 
-    switchButton->setText(sw_pos ? "Switch OFF" : "Switch ON");
-
-    requestStatus();
+    showStatus();
 }
 
 void Client::enable()

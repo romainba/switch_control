@@ -61,11 +61,11 @@ void Device::deleteClient(int pos)
     qDebug() << "dev: delete Client" << pos << *client->getAddr() << ":" << client->getPort();
 
     mainLayout->removeWidget(box);
-
     setLayout(mainLayout);
 
     clientList.removeAt(pos);
     client->deleteLater();
+    box->deleteLater();
 }
 
 /*

@@ -35,6 +35,8 @@ private slots:
     void switchToggled();
     void tempThresChanged();
 
+    void showStatus();
+
     void sendCmd(int cmd, int *data);
     void timerEvent(QTimerEvent *e);
 
