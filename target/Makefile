@@ -16,6 +16,7 @@ ifdef SIMU
 CFLAGS += -DCONFIG_SIMU
 endif
 
+LDFLAGS = -pthread
 
 BIN = server toggle_mode index.cgi
 
@@ -28,7 +29,7 @@ INDEX_OBJS = ds1820.o index.o
 OBJS = $(SERVER_OBJS) $(TOGGLE_OBJS) $(INDEX_OBJS)
 
 server: $(SERVER_OBJS)
-	$(CC) -o $@ $^
+	$(CC) $(LDFLAGS) -o $@ $^
 
 toggle_mode: $(TOGGLE_OBJS)
 	$(CC) -o $@ $^

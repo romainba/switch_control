@@ -168,7 +168,7 @@ int discover_service(char *if_name, char *name, int port)
 
 		t = 200000 + rand()/(RAND_MAX/256/1000);
 		usleep(t); /* 200 to 455 ms sleep */
-		printf("sleep %d ms\n", t / 1000);
+		//printf("sleep %d ms\n", t / 1000);
 
 		if (send_multicast(MULTICAST_ADDR, MULTICAST_PORT + 1,
 				   buf, strlen(buf)))

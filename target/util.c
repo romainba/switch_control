@@ -138,7 +138,7 @@ void logger(int priority, const char *file, int line,
 	}
 
 	//sprintf(str, "%c %s:%d:%s", level, file, line, func);
-	sprintf(str, "%c %s:%d", level, file, line);
+	sprintf(str, "%c %d %s:%d", level, getpid(), file, line);
 	if (*fmt) {
 		strcat(str, " ");
 		va_start(args, fmt);
