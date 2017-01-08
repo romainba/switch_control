@@ -186,6 +186,8 @@ static int proc_switch(struct config *config)
 	sigemptyset(&waitset);
 	sigaddset(&waitset, SIGUSR1);
 
+	DEBUG("proc_switch %d\n", getpid());
+	
 #ifdef GPIO_SW
 	gpio_conf(GPIO_SW, GPIO_MODE_OUT, NULL);
 #endif
@@ -195,9 +197,11 @@ static int proc_switch(struct config *config)
 	config->active = 1;
 	switch_off(&config->active);
 
-	if (sigprocmask(SIG_SETMASK, &waitset, NULL) < 0)
+	if (sigprocmask(SIG_SETMASK, &waitset, NULL) < 0) {
+		ERROR("sigprocmask failed\n");
 		exit(1);
-
+	}
+	
 	while (1) {
 		ret = sigwaitinfo(&waitset, &info);
 		if (ret < 0) {
@@ -244,7 +248,8 @@ static int proc_button(struct config *config)
 		/* toggle switch */
 		sv.sival_int = config->requested ? REQ_OFF : REQ_ON;
 		if (sigqueue(config->switch_pid, SIGUSR1, sv))
-			ERROR("sigqueue error %s", strerror(errno));
+			ERROR("sigqueue pid %d error %s", config->switch_pid,
+			      strerror(errno));
 	}
 	return -1;
 }
@@ -320,15 +325,16 @@ static int proc_socket(int s, struct config *config)
 			break;
 		}
 
+		DEBUG("send resp %d len %d request %d\n", resp.header.id, resp.header.len,
+			request);
+
 		if (!request)
 			continue;
 
 		sv.sival_int = request;
 		if (sigqueue(config->switch_pid, SIGUSR1, sv))
-			ERROR("sigqueue error %s", strerror(errno));
-
-		DEBUG("send resp %d len %d, request %d\n", resp.header.id, resp.header.len,
-			request);
+			ERROR("sigqueue pid %d error %s", config->switch_pid,
+			      strerror(errno));
 	}
 	close(s);
 	return 0;
@@ -367,7 +373,7 @@ int main(int argc, char *argv[])
 	discover_pid = ret;
 
 	/* shared memory between all child processes */
-	shmid = shmget(SHM_KEY, sizeof(struct config), 0644 | IPC_CREAT);
+	shmid = shmget(SHM_KEY + port, sizeof(struct config), 0644 | IPC_CREAT);
 	if (shmid < 0) {
 		ERROR("shmget failed: %s", strerror(errno));
 		goto error;
