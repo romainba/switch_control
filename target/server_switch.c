@@ -62,7 +62,6 @@ struct config {
 	int temp;
 	int temp_thres;
 	int active; /* switch state */
-	int switch_pid;
 	sem_t mutex;
 };
 
@@ -78,16 +77,6 @@ static inline void switch_set(int on)
 #ifdef GPIO_SW
 	gpio_set(GPIO_SW, on ? 255 : 0);
 #endif
-}
-
-static void send_switch_req(struct config *config, int req)
-{
-	union sigval sv;
-
-	sv.sival_int = req;
-	if (sigqueue(config->switch_pid, SIGUSR1, sv))
-		ERROR("sigqueue pid %d error %s", config->switch_pid,
-		      strerror(errno));
 }
 
 static void update_switch(struct config *config, int req)
@@ -195,45 +184,6 @@ static int proc_measure(struct config *config)
 		
 		sleep(MEASURE_PERIOD);
 	}
-	return 0;
-}
-
-
-
-static int proc_switch(struct config *config)
-{
-	int ret;
-	sigset_t waitset;
-	siginfo_t info;
-
-	sigemptyset(&waitset);
-	sigaddset(&waitset, SIGUSR1);
-
-	DEBUG("proc_switch %d\n", getpid());
-	
-	if (sigprocmask(SIG_SETMASK, &waitset, NULL) < 0) {
-		ERROR("sigprocmask failed\n");
-		return 1;
-	}
-
-	DEBUG("proc_switch loop\n");
-	
-	while (1) {
-		ret = sigwaitinfo(&waitset, &info);
-		if (ret < 0) {
-			if (errno == EAGAIN) {
-				/* timeout */
-				DEBUG("proc_switch eagain");
-				continue;
-			} else {
-				ERROR("proc_switch: sigwaitinfo failed %s",
-				      strerror(errno));
-				break;
-			}
-		}
-		update_switch(config, info.si_value.sival_int);
-	}
-	DEBUG("%s done", __func__);
 	return 0;
 }
 
@@ -428,19 +378,6 @@ int main(int argc, char *argv[])
 	}
 	meas_pid = ret;
 
-	/* lauch proc_switch process */
-	ret = fork();
-	if (ret < 0)
-		goto error;
-	if (ret == 0) {
-		if (proc_switch(config)) {
-			ERROR("proc_switch failed");
-			exit(1);
-		}
-		exit(0);
-	}
-	config->switch_pid = ret;
-
 	sock = socket(AF_INET, SOCK_STREAM, 0);
 
 	ret = 1;
@@ -492,8 +429,6 @@ int main(int argc, char *argv[])
 
 error:
 	kill(discover_pid, SIGTERM);
-	if (config)
-		kill(config->switch_pid, SIGTERM);
 	if (meas_pid)
 		kill(meas_pid, SIGTERM);
 		
