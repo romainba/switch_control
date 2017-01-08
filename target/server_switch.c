@@ -75,12 +75,6 @@ static inline void switch_set(int on)
 {
 	DEBUG("%s %d", __func__, on);
 
-#if (defined CONFIG_RADIATOR1)
-	led_set(LED2, on ? 255 : 0);
-#endif
-#if (defined CONFIG_RADIATOR2)
-	gpio_set(GPIO_LED, on ? 1 : 0);
-#endif
 #ifdef GPIO_SW
 	gpio_set(GPIO_SW, on ? 255 : 0);
 #endif
@@ -100,11 +94,18 @@ static void update_switch(struct config *config, int req)
 {
 	int new_active = 0;
 
-	//printf("sem_wait\n");
 	sem_wait(&config->mutex);
 
-	if (req)
+	if (req) {
 		config->requested = (req == REQ_ON);
+	
+#ifdef CONFIG_RADIATOR1
+		led_set(LED2, on ? 255 : 0);
+#endif
+#ifdef CONFIG_RADIATOR2
+		gpio_set(GPIO_LED, config->requested);
+#endif
+	}
 	
 	if (config->requested)
 		new_active = config->temp <= config->temp_thres;
@@ -117,7 +118,6 @@ static void update_switch(struct config *config, int req)
 	}
 
 	sem_post(&config->mutex);
-	//printf("sem_post\n");
 }
 
 static void init_switch(struct config *config)
@@ -264,8 +264,7 @@ static int proc_button(struct config *config)
 		lseek(fds.fd, 0, SEEK_SET);
 		ret = read(fds.fd, str, sizeof(str));
 
-		config->requested = !config->requested;
-		); 
+		update_switch(config, config->requested ? REQ_OFF : REQ_ON);
 	}
 	return -1;
 }
