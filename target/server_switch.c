@@ -93,20 +93,20 @@ static void update_switch(struct config *config, int req)
 
 	if (req) {
 		config->requested = (req == REQ_ON);
-	
+
 #ifdef CONFIG_RADIATOR1
-		led_set(LED2, on ? 255 : 0);
+		led_set(LED2, config->requested ? 255 : 0);
 #endif
 #ifdef CONFIG_RADIATOR2
 		gpio_set(GPIO_LED, config->requested);
 #endif
 	}
-	
+
 	if (config->requested)
 		new_active = config->temp <= config->temp_thres;
 
 	DEBUG("requested %d active %d\n", config->requested, new_active);
- 	
+
 	if (config->active != new_active) {
 		switch_set(new_active);
 		config->active = new_active;
@@ -150,7 +150,6 @@ static int proc_measure(struct config *config)
 			ERROR("sensor reading failed");
 			return 1;
 		}
-		printf("ds1820 %d\n", config->temp);
 #endif
 
 #ifdef CONFIG_RADIATOR2
@@ -188,7 +187,7 @@ static int proc_measure(struct config *config)
 		config->humidity = (int)(humi * 1000.0);
 #endif
 		update_switch(config, 0);
-		
+
 		sleep(MEASURE_PERIOD);
 	}
 	return 0;
@@ -227,12 +226,19 @@ static int proc_button(struct config *config)
 }
 #endif
 
+#ifdef BIG_ENDIAN
+#define conv32(x) (((x & 0xff) << 24) | ((x & 0xff00) << 8) | \
+		   ((x & 0xff0000) >> 8) | ((x & 0xff000000) >> 24))
+#else
+#define conv32(x) (x)
+#endif
+
 static int proc_socket(int s, struct config *config)
 {
 	struct pollfd fds = { .fd = s, .events = POLLIN | POLLERR };
 	struct resp resp;
 	struct cmd cmd;
-	int ret, req, n, update;
+	int ret, req, n, update, len, id;
 
 	while (1) {
 		/* wait event */
@@ -249,29 +255,32 @@ static int proc_socket(int s, struct config *config)
 		} else if (ret == 0)
 			break; /* connection closed */
 
-		DEBUG("received cmd %d len %d data %d", cmd.header.id, cmd.header.len,
-		      cmd.header.len ? cmd.u.sw_pos : -1);
+		id = conv32(cmd.header.id);
+		len = conv32(cmd.header.len);
+		if (len)
+			cmd.u.sw_pos = conv32(cmd.u.sw_pos);
 
-		resp.header.id = cmd.header.id;
-		resp.header.status = STATUS_OK;
-		resp.header.len = 0;
+		DEBUG("received cmd %d len %d data %d", id, len, len ? cmd.u.sw_pos : -1);
+
+		resp.header.status = conv32(STATUS_OK);
+		len = 0;
 
 		req = REQ_NONE;
 		update = 1;
 
-		switch (cmd.header.id) {
+		switch (id) {
 		case CMD_SET_SW_POS:
 			req = cmd.u.sw_pos /* 0 off, 1 on */ ? REQ_ON : REQ_OFF;
 			break;
 		case CMD_GET_STATUS: {
 #if (defined CONFIG_RADIATOR1) || (defined CONFIG_SIMU)
-			resp.header.len = sizeof(struct radiator1_status);
-			resp.status.rad1.temp = config->temp;
-			resp.status.rad1.tempThres = config->temp_thres;
-			resp.status.rad1.sw_pos = config->requested;
+			len = sizeof(struct radiator1_status);
+			resp.status.rad1.temp = conv32(config->temp);
+			resp.status.rad1.tempThres = conv32(config->temp_thres);
+			resp.status.rad1.sw_pos = conv32(config->requested);
 #endif
 #ifdef CONFIG_RADIATOR2
-			resp.header.len = sizeof(struct radiator2_status);
+			len = sizeof(struct radiator2_status);
 			resp.status.rad2.temp = config->temp;
 			resp.status.rad2.tempThres = config->temp_thres;
 			resp.status.rad2.sw_pos = config->requested;
@@ -289,17 +298,18 @@ static int proc_socket(int s, struct config *config)
 			config->temp_thres = cmd.u.temp;
 			break;
 		default:
-			resp.header.status = STATUS_CMD_INVALID;
+			resp.header.status = conv32(STATUS_CMD_INVALID);
 		}
 
-		ret = write(s, &resp, resp.header.len + sizeof(struct resp_header));
+		resp.header.id = conv32(id);
+		resp.header.len = conv32(len);
+		ret = write(s, &resp, len + sizeof(struct resp_header));
 		if (ret < 0) {
 			ERROR("write error %s", strerror(errno));
 			break;
 		}
 
-		DEBUG("send resp %d len %d update %d req %d\n", resp.header.id,
-		      resp.header.len, update, req);
+		DEBUG("send resp %d len %d update %d req %d\n", id, len, update, req);
 
 		if (update)
 			update_switch(config, req);
@@ -357,7 +367,7 @@ int main(int argc, char *argv[])
 	memset(config, 0, sizeof(struct config));
 	config->temp_thres = DEFAULT_TEMP;
 	init_switch(config);
-	
+
 #ifdef GPIO_BUTTON
 	/* lauch proc_button process */
 	ret = fork();
@@ -438,7 +448,7 @@ error:
 	kill(discover_pid, SIGTERM);
 	if (meas_pid)
 		kill(meas_pid, SIGTERM);
-		
+
 	while (1) {
 		pid = waitpid(-1, &status, WNOHANG);
 		if (pid < 0) {
