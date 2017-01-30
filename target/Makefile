@@ -22,7 +22,7 @@ BIN = server toggle_mode index.cgi
 
 all: $(BIN)
 
-SERVER_OBJS = util.o RPi_SHT1x.o discover.o server_switch.o
+SERVER_OBJS = util.o RPi_SHT1x.o discover.o server_switch.o ds1820.o
 TOGGLE_OBJS = util.o toggle_mode.o
 INDEX_OBJS = ds1820.o index.o
 

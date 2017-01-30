@@ -28,7 +28,7 @@
  * Radiator 1
  */
 #ifdef CONFIG_RADIATOR1
-#include "ds1820.h"
+#define CONFIG_DS1820
 #define GPIO_SW 7
 
 /* led in /sys/class/leds/ */
@@ -42,17 +42,22 @@
  * Radiator 2
  */
 #ifdef CONFIG_RADIATOR2
+#define CONFIG_DS1820
 #include "RPi_SHT1x.h"
-//#define GPIO_SW  17
+#define GPIO_SW  27
 #define GPIO_LED 2
 #define GPIO_BUTTON 17
+#endif
+
+#ifdef CONFIG_DS1820
+#include "ds1820.h"
 #endif
 
 /*
  * Common structure
  */
 struct config {
-#ifdef CONFIG_RADIATOR1
+#ifdef CONFIG_DS1820
 	char dev[20];
 #endif
 #ifdef CONFIG_RADIATOR2
@@ -63,6 +68,7 @@ struct config {
 	int temp_thres;
 	int active; /* switch state */
 	sem_t mutex;
+	int temp2;
 };
 
 enum { REQ_NONE, REQ_ON, REQ_OFF };
@@ -111,10 +117,10 @@ static void update_switch(struct config *config, int req)
 
 static void init_switch(struct config *config)
 {
-#ifdef CONFIG_RADIATOR1
+#ifdef CONFIG_DS1820
 	if (ds1820_search(config->dev)) {
 		ERROR("Did not find any sensor");
-		goto error;
+		return;
 	}
 #endif
 
@@ -139,11 +145,12 @@ static int proc_measure(struct config *config)
 
 	while (1) {
 
-#ifdef CONFIG_RADIATOR1
+#ifdef CONFIG_DS1820
 		if (ds1820_get_temp(config->dev, &config->temp)) {
 			ERROR("sensor reading failed");
 			return 1;
 		}
+		printf("ds1820 %d\n", config->temp);
 #endif
 
 #ifdef CONFIG_RADIATOR2
@@ -177,7 +184,7 @@ static int proc_measure(struct config *config)
 		SHT1x_Calc(&humi, &temp);
 		printf("temp %0.2f, humidity %0.2f\n", temp, humi);
 
-		config->temp = (int)(temp * 1000.0);
+		config->temp2 = (int)(temp * 1000.0);
 		config->humidity = (int)(humi * 1000.0);
 #endif
 		update_switch(config, 0);

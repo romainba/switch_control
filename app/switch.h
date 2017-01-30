@@ -52,6 +52,7 @@ struct radiator2_status {
     int sw_pos;
     int temp;
     int humidity;
+    int temp2;
 };
 
 union status {
