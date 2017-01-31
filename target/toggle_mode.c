@@ -32,7 +32,7 @@ int main(int argc, char *argv[])
 		return 0;
 	}
 
-	cmd.header.id = CMD_TOGGLE_MODE;
+	cmd.header.id = conv32(CMD_TOGGLE_MODE);
 	cmd.header.len = 0;
 
 	ret = write(sock, &cmd, sizeof(struct cmd_header));
