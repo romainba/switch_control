@@ -226,13 +226,6 @@ static int proc_button(struct config *config)
 }
 #endif
 
-#ifdef BIG_ENDIAN
-#define conv32(x) (((x & 0xff) << 24) | ((x & 0xff00) << 8) | \
-		   ((x & 0xff0000) >> 8) | ((x & 0xff000000) >> 24))
-#else
-#define conv32(x) (x)
-#endif
-
 static int proc_socket(int s, struct config *config)
 {
 	struct pollfd fds = { .fd = s, .events = POLLIN | POLLERR };
