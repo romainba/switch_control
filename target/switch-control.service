@@ -1,0 +1,12 @@
+[Unit]
+Description=Switch control Service
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=forking
+ExecStart=/home/pi/switch_control/target/server sous-sol wlan0
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
