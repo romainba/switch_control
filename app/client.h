@@ -47,6 +47,7 @@ private:
     class QLabel *tempThresValueLabel;
     class QSlider *tempThresSlider;
     class QLabel *tempLabel;
+    class QLabel *humidityLabel;
     class QPushButton *switchButton;
     class QDialogButtonBox *buttonBox;
 

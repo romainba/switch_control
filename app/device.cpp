@@ -25,10 +25,10 @@ Device::Device(QWidget *parent)
     connect(udpSocket, SIGNAL(readyRead()), this, SLOT(processPendingDatagrams()));
 
     mainLayout = new QVBoxLayout;
-    mainLayout->setSizeConstraint(QLayout::SetFixedSize);
+    //mainLayout->setSizeConstraint(QLayout::SetFixedSize);
 
     qDebug() << QDesktopWidget().availableGeometry(this).size();
-    //resize(QDesktopWidget().availableGeometry(this).size());
+    resize(QDesktopWidget().availableGeometry(this).size());
 
     sendMulticastMsg("discover");
     statusTimer = startTimer(DEVICETIMEOUT * 1000);
@@ -120,6 +120,7 @@ void Device::processPendingDatagrams()
 
         QGroupBox *box = new QGroupBox(*name + " - " + *serverAddr + ":" + QString::number(serverPort));
         client = new Client(box, devType, clientList.size(), serverAddr, serverPort);
+        box->setMaximumHeight(600);
         mainLayout->addWidget(box);
 
         setLayout(mainLayout);

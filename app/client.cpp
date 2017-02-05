@@ -40,6 +40,10 @@ Client::Client(QGroupBox *box, int devType, int pos, QString *addr, int port)
     tempThresLabel->setBuddy(tempThresSlider);
 
     tempLabel = new QLabel(tr("-"));
+    if (devType == RADIATOR2)
+            humidityLabel = new QLabel(tr("-"));
+    else
+            humidityLabel = NULL;
     tempThresValueLabel = new QLabel(tr("-"));
     tempThresValueLabel->setBuddy(tempThresSlider);
 
@@ -56,12 +60,15 @@ Client::Client(QGroupBox *box, int devType, int pos, QString *addr, int port)
 
     layout = new QGridLayout;
 
-    layout->addWidget(tempLabel, 0, 0, 1, 2);
+    int row = 0;
+    layout->addWidget(tempLabel, row++, 0, 1, 2);
+    if (humidityLabel)
+           layout->addWidget(humidityLabel, row++, 0, 1, 2);
     layout->addWidget(buttonBox, 0, 2, 1, 1, Qt::AlignRight);
 
-    layout->addWidget(tempThresLabel, 1, 0, 1, 1);
-    layout->addWidget(tempThresSlider, 1, 1, 1, 1);
-    layout->addWidget(tempThresValueLabel, 1, 2, 1, 1, Qt::AlignCenter);
+    layout->addWidget(tempThresLabel, row, 0, 1, 1);
+    layout->addWidget(tempThresSlider, row, 1, 1, 1);
+    layout->addWidget(tempThresValueLabel, row, 2, 1, 1, Qt::AlignCenter);
 
     box->setLayout(layout);
 
@@ -81,6 +88,10 @@ Client::~Client()
     layout->removeWidget(tempThresLabel);
     layout->removeWidget(buttonBox);
     layout->removeWidget(tempLabel);
+    if (humidityLabel) {
+        layout->removeWidget(humidityLabel);
+        delete humidityLabel;
+    }
 
     delete tempThresValueLabel;
     delete tempThresSlider;
@@ -189,8 +200,10 @@ void Client::showStatus()
         tempThresSlider->setValue(s->tempThres/1000.0);
 
         tempLabel->setText(str + " " +
-                           QString::number(s->temp / 1000.0, 'f', 1) + "°C humidity " +
-                           QString::number(s->humidity / 1000.0, 'f', 1) + "%");
+                           QString::number(s->temp / 1000.0, 'f', 1) + "°C");
+        humidityLabel->setText("humidity " +
+                               QString::number(s->humidity / 1000.0, 'f', 1) + "%");
+
         qDebug() << "  temp" << s->temp / 1000.0 << "thres" <<
                     s->tempThres / 1000.0;
 

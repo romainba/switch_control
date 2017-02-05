@@ -135,14 +135,16 @@ int discover_service(char *if_name, char *name, int port)
 	sin.sin_port = htons(MULTICAST_PORT);
 	sin_len = sizeof(sin);
 
+#ifdef SO_REUSEPORT
 	if (setsockopt(sock, SOL_SOCKET, SO_REUSEPORT, &optval, sizeof(optval))) {
 		ERROR("setsockopt failed: %s", strerror(errno));
 		return 1;
 	}
+#endif
 
 	if (bind(sock, (struct sockaddr *) &sin, sizeof(sin))) {
-	  ERROR("bind failed: %s\n", strerror(errno));
-	  return 1;
+		ERROR("bind failed: %s\n", strerror(errno));
+		return 1;
 	}
 
 	mreq.imr_multiaddr.s_addr = inet_addr(MULTICAST_ADDR);
