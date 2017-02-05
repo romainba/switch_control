@@ -3,12 +3,18 @@
 
 int file_exists(char *file);
 
+#ifdef SYSLOG
+#include <syslog.h>
+#else
 enum {
 	LOG_ERR,
 	LOG_WARNING,
 	LOG_DEBUG,
 	LOG_INFO
 };
+#endif
+
+void logger_init(void);
 
 void logger(int priority, const char *file, int line,
 	       const char *func,const char *fmt, ...);
@@ -29,5 +35,9 @@ int led_get(char *led);
 #define WARN(...)  logger(LOG_WARNING, __FILE__, __LINE__, __func__, __VA_ARGS__)
 #define DEBUG(...) logger(LOG_DEBUG, __FILE__, __LINE__, __func__, __VA_ARGS__)
 #define INFO(...)  logger(LOG_INFO, __FILE__, __LINE__, __func__, __VA_ARGS__)
+
+void handle_signal(int sig);
+void daemonize(void);
+
 
 #endif

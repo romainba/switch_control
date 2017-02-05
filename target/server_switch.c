@@ -15,14 +15,16 @@
 #include <signal.h>
 #include <fcntl.h>
 #include <semaphore.h>
-
+#include <sys/prctl.h>
 #include "util.h"
 #include <switch.h>
 #include "discover.h"
 
-#define MEASURE_PERIOD 5
+#define MEASURE_PERIOD 10
 #define TEMPTHRES 25
 #define DEFAULT_TEMP (25 * 1000) /* degres */
+
+#define DEFAULT_PORT 8998
 
 /*
  * Radiator 1
@@ -75,6 +77,10 @@ enum { REQ_NONE, REQ_ON, REQ_OFF };
 
 #define SHM_KEY 0x1234
 
+static char discover_name[] = "switch discover";
+static char measure_name[]  = "switch measure";
+static char button_name[]   = "switch button";
+static char socket_name[]   = "switch socket";
 
 static inline void switch_set(int on)
 {
@@ -103,7 +109,7 @@ static void update_switch(struct config *config, int req)
 	}
 	
 	if (config->requested)
-		new_active = config->temp <= config->temp_thres;
+		new_active = (config->temp <= config->temp_thres);
 
 	DEBUG("requested %d active %d\n", config->requested, new_active);
  	
@@ -137,6 +143,8 @@ static void init_switch(struct config *config)
 	config->active = 1;
 	sem_init(&config->mutex, 0, 1);
 	update_switch(config, REQ_OFF);
+
+	DEBUG("done");
 }
 
 static int proc_measure(struct config *config)
@@ -150,7 +158,7 @@ static int proc_measure(struct config *config)
 			ERROR("sensor reading failed");
 			return 1;
 		}
-		printf("ds1820 %d\n", config->temp);
+		DEBUG("ds1820 %d\n", config->temp);
 #endif
 
 #ifdef CONFIG_RADIATOR2
@@ -182,7 +190,7 @@ static int proc_measure(struct config *config)
 		humi = (float)val;
 
 		SHT1x_Calc(&humi, &temp);
-		printf("temp %0.2f, humidity %0.2f\n", temp, humi);
+		DEBUG("temp %0.2f, humidity %0.2f\n", temp, humi);
 
 		config->temp2 = (int)(temp * 1000.0);
 		config->humidity = (int)(humi * 1000.0);
@@ -210,6 +218,8 @@ static int proc_button(struct config *config)
 		ERROR("gpio open failed\n");
 		return -1;
 	}
+
+	ret = read(fds.fd, str, sizeof(str));
 
 	while (1) {
 		ret = poll(&fds, 1, -1);
@@ -314,9 +324,9 @@ int main(int argc, char *argv[])
 	struct sockaddr_in sin;
 	struct in_addr in_addr;
 	struct config *config = NULL;
-	char *buffer;
+	char *buffer, *if_name;
 	int port = DEFAULT_PORT;
-	int meas_pid = 0;
+	int meas_pid = 0, len = strlen(argv[0]);
 
 	if (argc < 2 || argc > 4) {
 		printf("usage: %s <name> [<ethernet if> [<port>]]\n", argv[0]);
@@ -326,13 +336,24 @@ int main(int argc, char *argv[])
 	if (argc == 4)
 		port = atoi(argv[3]);
 
+	if_name = (argc > 2) ? argv[2] : "wlan0";
+
+	logger_init();
+
+	daemonize();
+	
+	/* Daemon will handle two signals */
+	signal(SIGINT, handle_signal);
+	signal(SIGHUP, handle_signal);
+
 	/* start discover service */
+	strncpy(argv[0], discover_name, len);
+	argc = 1;
 	ret = fork();
 	if (ret < 0)
 		exit(1);
 	if (ret == 0) {
-		char *if_name = (argc > 2) ? argv[2] : "wlan0";
-
+		prctl(PR_SET_NAME, discover_name);
 		if (discover_service(if_name, argv[1], port)) {
 			ERROR("discover_service failed");
 			exit(1);
@@ -340,7 +361,7 @@ int main(int argc, char *argv[])
 		exit(0);
 	}
 	discover_pid = ret;
-
+	
 	/* shared memory between all child processes */
 	shmid = shmget(SHM_KEY + port, sizeof(struct config), 0644 | IPC_CREAT);
 	if (shmid < 0) {
@@ -360,6 +381,7 @@ int main(int argc, char *argv[])
 	
 #ifdef GPIO_BUTTON
 	/* lauch proc_button process */
+	strncpy(argv[0], button_name, len);
 	ret = fork();
 	if (ret < 0)
 		goto error;
@@ -373,6 +395,7 @@ int main(int argc, char *argv[])
 #endif
 
 	/* lauch proc_measure process */
+	strncpy(argv[0], measure_name, len);
 	ret = fork();
 	if (ret < 0)
 		goto error;
@@ -399,7 +422,7 @@ int main(int argc, char *argv[])
 	bind(sock, (struct sockaddr *) &sin, sizeof(sin));
 
 	listen(sock, 5);
-	printf("listening port %d\n", port);
+	INFO("listening port %d\n", port);
 
 	while (1) {
 
@@ -410,6 +433,7 @@ int main(int argc, char *argv[])
 		}
 
 		/* lauch proc_socket process */
+		strncpy(argv[0], socket_name, len);
 		pid = fork();
 		if (pid < 0)
 			ERROR("fork: %s",  strerror(errno));

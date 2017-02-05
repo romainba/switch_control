@@ -33,8 +33,8 @@ static char *get_local_ipaddr(char *if_name)
 	strncpy(ifr.ifr_name, if_name, IFNAMSIZ-1);
 
 	if (ioctl(fd, SIOCGIFADDR, &ifr)) {
-		DEBUG("SIOCGIFADDR %s failed: %s", if_name, strerror(errno));
-		return NULL;
+	  DEBUG("SIOCGIFADDR %s failed: %s", if_name, strerror(errno));
+	  return NULL;
 	}
 	close(fd);
 
@@ -103,13 +103,19 @@ int discover_service(char *if_name, char *name, int port)
 	unsigned int sin_len;
 	struct sockaddr_in sin;
 	struct ip_mreq mreq;
-
+	int timeout = 10;
+	
 	srand(time(NULL));
 
-	buffer = get_local_ipaddr(if_name);
+	while (timeout--) {
+	  buffer = get_local_ipaddr(if_name);
+	  if (buffer)
+	    break;
+	  sleep(1);
+	}
 	if (!buffer) {
-		DEBUG("%s interface not found", if_name);
-		return 1;
+	    DEBUG("%s interface not found", if_name);
+	    return 1;
 	}
 
 #if (defined CONFIG_RADIATOR1) || (defined CONFIG_SIMU)
@@ -134,7 +140,10 @@ int discover_service(char *if_name, char *name, int port)
 		return 1;
 	}
 
-	bind(sock, (struct sockaddr *) &sin, sizeof(sin));
+	if (bind(sock, (struct sockaddr *) &sin, sizeof(sin))) {
+	  ERROR("bind failed: %s\n", strerror(errno));
+	  return 1;
+	}
 
 	mreq.imr_multiaddr.s_addr = inet_addr(MULTICAST_ADDR);
 	mreq.imr_interface.s_addr = htonl(INADDR_ANY);
@@ -144,7 +153,7 @@ int discover_service(char *if_name, char *name, int port)
 		return 1;
 	}
 
-	printf("listening multicase port %d\n", MULTICAST_PORT);
+	DEBUG("listening multicase port %d\n", MULTICAST_PORT);
 
 	while (1) {
 
@@ -170,6 +179,8 @@ int discover_service(char *if_name, char *name, int port)
 		usleep(t); /* 200 to 455 ms sleep */
 		//printf("sleep %d ms\n", t / 1000);
 
+		DEBUG("send multicast msg\n");
+		
 		if (send_multicast(MULTICAST_ADDR, MULTICAST_PORT + 1,
 				   buf, strlen(buf)))
 			ERROR("send_multicast failed");
