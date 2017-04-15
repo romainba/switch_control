@@ -60,7 +60,7 @@ static int fd_read(char *gpio, char *str, int len, const char *func)
 void gpio_dir(int gpio, int mode)
 {
 	char str[50];
-	sprintf(str, "/sys/class/gpio/gpio%d/dir", gpio);
+	sprintf(str, "/sys/class/gpio/gpio%d/direction", gpio);
 	fd_write(str,  mode == GPIO_MODE_IN ? "in" : "out", __func__);
 }
 

@@ -20,6 +20,8 @@
 #include <switch.h>
 #include "discover.h"
 
+#define VERSION "1.0.0"
+
 #define MEASURE_PERIOD 10
 #define TEMPTHRES 25
 #define DEFAULT_TEMP (25 * 1000) /* degres */
@@ -340,6 +342,8 @@ int main(int argc, char *argv[])
 		port = atoi(argv[3]);
 
 	if_name = (argc > 2) ? argv[2] : "wlan0";
+
+	INFO("ver %s\n", VERSION);
 
 	logger_init();
 
