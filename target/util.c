@@ -28,113 +28,112 @@ int file_exists(char *file)
 	return 1; /* S_ISDIR(s.st_mode) */
 }
 
+static int fd_write(char *gpio, char *value, const char *func)
+{
+	int ret, fd = open(gpio, O_WRONLY);
+	if (fd < 0) {
+		ERROR("%s open failed: %s\n", func, strerror(errno));
+		return -1;
+	}
+	ret = write(fd, value, strlen(value));
+	if (ret < 0)
+		ERROR("%s write failed: %s\n", func, strerror(errno));
+	close(fd);
+
+	return ret;
+}
+
+static int fd_read(char *gpio, char *str, int len, const char *func)
+{
+	int ret, fd = open(gpio, O_RDONLY);
+	if (fd < 0) {
+		ERROR("%s open failed: %s\n", func, strerror(errno));
+		return -1;
+	}
+	ret = read(fd, str, len);
+	if (ret < 0)
+		ERROR("%s write failed: %s\n", func, strerror(errno));
+
+	close(fd);
+	return ret;
+}
 void gpio_dir(int gpio, int mode)
 {
 	char str[50];
-	int ret;
-	
-	sprintf(str, "echo %s > /sys/class/gpio/gpio%d/direction",
-		mode == GPIO_MODE_IN ? "in" : "out", gpio);
-	ret = system(str);
-	if (ret)
-	  ERROR("'%s' failed %d\n", str, ret);
+	sprintf(str, "/sys/class/gpio/gpio%d/dir", gpio);
+	fd_write(str,  mode == GPIO_MODE_IN ? "in" : "out", __func__);
 }
 
 void gpio_edge(int gpio, char *edge)
 {
 	char str[50];
-	int ret;
-	
-	sprintf(str, "echo %s > /sys/class/gpio/gpio%d/edge",
-		edge, gpio);
-	ret = system(str);
-	if (ret)
-	  ERROR("'%s' failed %d\n", str, ret);
+	sprintf(str, "/sys/class/gpio/gpio%d/edge", gpio);
+	fd_write(str, edge, __func__);
 }
-
 
 void gpio_conf(int gpio, int mode, char *edge)
 {
 	char str[50];
 	int ret;
-	
+
 	sprintf(str, "/sys/class/gpio/gpio%d", gpio);
 	if (!file_exists(str)) {
-		sprintf(str, "echo %d > /sys/class/gpio/export", gpio);
-		ret = system(str);
-		if (ret)
-		  ERROR("'%s' failed %d\n", str, ret);
+		sprintf(str, "%d", gpio);
+		ret = fd_write("/sys/class/gpio/export", str, __func__);
+		if (ret < 0)
+			return;
 	}
 
 	usleep(100000);
 
 	gpio_dir(gpio, mode);
 	if (edge)
-	  gpio_edge(gpio, edge);
+		gpio_edge(gpio, edge);
 }
 
 void gpio_set(int gpio, int value)
 {
-	char str[50];
-	int ret;
-	
-	sprintf(str, "echo %d > /sys/class/gpio/gpio%d/value", value, gpio);
-	ret = system(str);
-	if (ret)
-	  ERROR("'%s' failed %d\n", str, ret);
+	char str[50], buf[10];
+	sprintf(str, "/sys/class/gpio/gpio%d/value", gpio);
+	sprintf(buf, "%d", value);
+	fd_write(str, buf, __func__);
 }
 
 int gpio_get(int gpio)
 {
-	char str[50];
-	int fd, n, ret = 0;
+	char str[50], buf[10];
+	int ret;
 
 	sprintf(str, "/sys/class/gpio/gpio%d/value", gpio);
-	fd = open(str, O_RDONLY);
-	n = read(fd, str, sizeof(str));
-	if (n < 0) {
-		printf("read gpio failed\n");
-		ret = -1;
-		goto error;
-	}
+	ret = fd_read(str, buf, sizeof(buf), __func__);
+	if (ret != 1)
+		return -1;
 
-	ret = str[0] - '0';
-	if (ret < 0 || ret > 1) {
+	ret = atoi(buf);
+	if (ret < 0 || ret > 1)
 		ret = -1;
-		goto error;
-	}
 
-error:
-	close(fd);
 	return ret;
 }
 
-
 void led_set(char *led, int value)
 {
-	char str[50];
-	sprintf(str, "echo %d > /sys/class/leds/%s/brightness", value, led);
-	if (system(str))
-		ERROR("system %s failed", str);
+	char str[50], buf[10];
+	sprintf(str, "/sys/class/leds/%s/brightness", led);
+	sprintf(buf, "%d", value);
+	fd_write(str, buf, __func__);
 }
 
 int led_get(char *led)
 {
-	FILE *pipe;
-	char str[50], buf[20];
+	char str[50], buf[10];
 	int ret;
 
-	sprintf(str, "cat /sys/class/leds/%s/brightness", led);
-	pipe = popen(str, "r");
-	ret = fread(buf, 1, sizeof(buf), pipe);
-	if (ret < 0) {
-		ERROR("%s fread failed: %s", strerror(errno));
+	sprintf(str, "/sys/class/leds/%s/brightness", led);
+	ret = fd_read(str, buf, sizeof(buf), __func__);
+	if (ret <= 0)
 		return -1;
-	} else if (ret == 0) {
-		ERROR("%s fread empty");
-		return -1;
-	}
-	pclose(pipe);
+
 	return atoi(buf);
 }
 

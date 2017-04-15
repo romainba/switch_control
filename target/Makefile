@@ -1,5 +1,8 @@
-#CC=mips-openwrt-linux-gcc
+ifdef CONFIG_MIPS
+CC=mips-openwrt-linux-gcc
+else
 CC=gcc
+endif
 
 CFLAGS = -g -O2 -Wall -Wstrict-prototypes -Wno-unused-function -Wno-unused-variable \
 	-Wimplicit-function-declaration

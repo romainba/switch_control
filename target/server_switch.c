@@ -344,7 +344,7 @@ int main(int argc, char *argv[])
 	logger_init();
 
 	daemonize();
-	
+
 	/* Daemon will handle two signals */
 	signal(SIGINT, handle_signal);
 	signal(SIGHUP, handle_signal);
@@ -364,7 +364,7 @@ int main(int argc, char *argv[])
 		exit(0);
 	}
 	discover_pid = ret;
-	
+
 	/* shared memory between all child processes */
 	shmid = shmget(SHM_KEY + port, sizeof(struct config), 0644 | IPC_CREAT);
 	if (shmid < 0) {
