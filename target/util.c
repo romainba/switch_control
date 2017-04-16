@@ -9,7 +9,6 @@
 #ifdef SYSLOG
 #include <syslog.h>
 #endif
-#include <signal.h>
 
 #include "util.h"
 
