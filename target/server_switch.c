@@ -19,6 +19,7 @@
 #include "util.h"
 #include <switch.h>
 #include "discover.h"
+#include "daemonize.h"
 
 #define VERSION "1.0.0"
 
@@ -47,6 +48,7 @@
  */
 #ifdef CONFIG_RADIATOR2
 #define CONFIG_DS1820
+//#define CONFIG_SHT1x
 #include "RPi_SHT1x.h"
 #define GPIO_SW  27
 #define GPIO_LED 2
@@ -77,7 +79,7 @@ struct config {
 
 enum { REQ_NONE, REQ_ON, REQ_OFF };
 
-#define SHM_KEY 0x1234
+#define SHM_KEY 0x2234
 
 static char discover_name[] = "switch discover";
 static char measure_name[]  = "switch measure";
@@ -125,16 +127,7 @@ static void update_switch(struct config *config, int req)
 
 static void init_switch(struct config *config)
 {
-#ifdef CONFIG_DS1820
-	if (ds1820_search(config->dev)) {
-		ERROR("Did not find any sensor");
-		return;
-	}
-#endif
-
-#ifdef CONFIG_RADIATOR2
-	SHT1x_InitPins();
-	SHT1x_Reset();
+#ifdef GPIO_LED
 	gpio_conf(GPIO_LED, GPIO_MODE_OUT, NULL);
 #endif
 
@@ -153,6 +146,18 @@ static int proc_measure(struct config *config)
 {
 	config->temp = 23 * 1000;
 
+#ifdef CONFIG_DS1820
+	if (ds1820_search(config->dev)) {
+		ERROR("Did not find any sensor");
+		return 1;
+	}
+#endif
+
+#ifdef CONFIG_SHT1x
+	SHT1x_InitPins();
+	SHT1x_Reset();
+#endif
+
 	while (1) {
 
 #ifdef CONFIG_DS1820
@@ -162,7 +167,7 @@ static int proc_measure(struct config *config)
 		}
 #endif
 
-#ifdef CONFIG_RADIATOR2
+#ifdef CONFIG_SHT1x
 		unsigned short int val;
 		float humi, temp;
 
@@ -334,7 +339,8 @@ int main(int argc, char *argv[])
 	int meas_pid = 0, len = strlen(argv[0]);
 
 	if (argc < 2 || argc > 4) {
-		printf("usage: %s <name> [<ethernet if> [<port>]]\n", argv[0]);
+		printf("usage: %s <name> [<ethernet if> [<port>]]\n"
+		       "Ver %s\n", argv[0], VERSION);
 		exit(1);
 	}
 
@@ -343,15 +349,15 @@ int main(int argc, char *argv[])
 
 	if_name = (argc > 2) ? argv[2] : "wlan0";
 
-	INFO("ver %s\n", VERSION);
-
 	logger_init();
 
+#ifdef DAEMONIZE
 	daemonize();
 
 	/* Daemon will handle two signals */
 	signal(SIGINT, handle_signal);
 	signal(SIGHUP, handle_signal);
+#endif
 
 	/* start discover service */
 	strncpy(argv[0], discover_name, len);

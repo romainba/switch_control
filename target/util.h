@@ -36,9 +36,6 @@ int led_get(char *led);
 #define DEBUG(...) logger(LOG_DEBUG, __FILE__, __LINE__, __func__, __VA_ARGS__)
 #define INFO(...)  logger(LOG_INFO, __FILE__, __LINE__, __func__, __VA_ARGS__)
 
-void handle_signal(int sig);
-void daemonize(void);
-
 #if (defined RADIATOR1)
 #define conv32(x) (((x & 0xff) << 24) | ((x & 0xff00) << 8) |		\
 		   ((x & 0xff0000) >> 8) | ((x & 0xff000000) >> 24))

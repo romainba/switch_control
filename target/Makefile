@@ -20,25 +20,31 @@ ifdef SIMU
 CFLAGS += -DCONFIG_SIMU
 endif
 
+ifdef DAEMONIZE
+CFLAGS += -DDAEMONIZE
+endif
+
 LDFLAGS = -pthread
 
 BIN = server toggle_mode index.cgi
 
 all: $(BIN)
 
-SERVER_OBJS = util.o RPi_SHT1x.o discover.o server_switch.o ds1820.o
-TOGGLE_OBJS = util.o toggle_mode.o
-INDEX_OBJS = ds1820.o index.o
+SERVER-y = util.o RPi_SHT1x.o discover.o server_switch.o ds1820.o
+SERVER-$(DAEMONIZE) += daemonize.o
 
-OBJS = $(SERVER_OBJS) $(TOGGLE_OBJS) $(INDEX_OBJS)
+TOGGLE-y = util.o toggle_mode.o
+INDEX-y = ds1820.o index.o
 
-server: $(SERVER_OBJS)
+OBJS = $(SERVER-y) $(TOGGLE-y) $(INDEX-y)
+
+server: $(SERVER-y)
 	$(CC) $(LDFLAGS) -o $@ $^
 
-toggle_mode: $(TOGGLE_OBJS)
+toggle_mode: $(TOGGLE-y)
 	$(CC) -o $@ $^
 
-index.cgi: $(INDEX_OBJS)
+index.cgi: $(INDEX-y)
 	$(CC) -o $@ $^
 
 %.o: %.c
