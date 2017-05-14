@@ -4,29 +4,29 @@ else
 CC=gcc
 endif
 
-CFLAGS = -O2 -Wall -Wstrict-prototypes -Wno-unused-function -Wno-unused-variable \
-	-Wimplicit-function-declaration
+ccflags-y = -O2 -Wall -Wstrict-prototypes -Wno-unused-function \
+	-Wno-unused-variable -Wimplicit-function-declaration
 
-CFLAGS += -I ../app
+ccflags-y += -I ../app
 
 ifeq ($(RADIATOR), 1)
-CFLAGS += -DCONFIG_RADIATOR1 # TPLink with DS1820
+ccflags-y += -DCONFIG_RADIATOR1 # TPLink with DS1820
 DS1820=y
 else
 ifeq ($(RADIATOR), 2)
-CFLAGS += -DCONFIG_RADIATOR2 # Raspberry PI 3 with SHT1x
-CFLAGS += -DSYSLOG
+ccflags-y += -DCONFIG_RADIATOR2 # Raspberry PI 3 with SHT1x
+ccflags-y += -DSYSLOG
 DS1820=y
 SHT1x=y
 DAEMONIZE=y
 else
-CFLAGS += -DCONFIG_SIMU
+ccflags-y += -DCONFIG_SIMU
 endif
 endif
 
-ifdef DAEMONIZE
-CFLAGS += -DCONFIG_DAEMONIZE
-endif
+ccflags-$(DAEMONIZE) += -DCONFIG_DAEMONIZE
+ccflags-$(DS1820) += -DCONFIG_DS1820
+ccflags-$(SHT1x) += -DCONFIG_SHT1x
 
 LDFLAGS = -pthread
 
@@ -54,7 +54,7 @@ index.cgi: $(INDEX-y)
 	$(CC) -o $@ $^
 
 %.o: %.c
-	$(CC) $(CFLAGS) $(CPPFLAGS) -c -o $@ $<
+	$(CC) $(ccflags-y) $(CPPFLAGS) -c -o $@ $<
 
 CPPFLAGS += -MD -MP
 

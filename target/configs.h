@@ -10,7 +10,6 @@
  */
 #ifdef CONFIG_RADIATOR1
 #define SWAP_ENDIAN
-#define CONFIG_DS1820
 #define GPIO_SW 7
 
 /* led in /sys/class/leds/ */
@@ -24,8 +23,6 @@
  * Radiator 2 : raspberry pi3
  */
 #ifdef CONFIG_RADIATOR2
-#define CONFIG_DS1820
-//#define CONFIG_SHT1x
 #define GPIO_SW  27
 #define GPIO_LED 2
 #define GPIO_BUTTON 17
