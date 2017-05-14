@@ -9,19 +9,23 @@ CFLAGS = -O2 -Wall -Wstrict-prototypes -Wno-unused-function -Wno-unused-variable
 
 CFLAGS += -I ../app
 
-ifdef RADIATOR1
+ifeq ($(RADIATOR), 1)
 CFLAGS += -DCONFIG_RADIATOR1 # TPLink with DS1820
-endif
-ifdef RADIATOR2
+DS1820=y
+else
+ifeq ($(RADIATOR), 2)
 CFLAGS += -DCONFIG_RADIATOR2 # Raspberry PI 3 with SHT1x
 CFLAGS += -DSYSLOG
-endif
-ifdef SIMU
+DS1820=y
+SHT1x=y
+DAEMONIZE=y
+else
 CFLAGS += -DCONFIG_SIMU
+endif
 endif
 
 ifdef DAEMONIZE
-CFLAGS += -DDAEMONIZE
+CFLAGS += -DCONFIG_DAEMONIZE
 endif
 
 LDFLAGS = -pthread
@@ -30,7 +34,9 @@ BIN = server toggle_mode index.cgi
 
 all: $(BIN)
 
-SERVER-y = util.o RPi_SHT1x.o discover.o server_switch.o ds1820.o
+SERVER-y = util.o discover.o server_switch.o
+SERVER-$(SHT1x) += RPi_SHT1x.o
+SERVER-$(DS1820) += ds1820.o
 SERVER-$(DAEMONIZE) += daemonize.o
 
 TOGGLE-y = util.o toggle_mode.o

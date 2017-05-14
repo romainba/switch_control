@@ -16,65 +16,46 @@
 #include <fcntl.h>
 #include <semaphore.h>
 #include <sys/prctl.h>
-#include "util.h"
 #include <switch.h>
 #include "discover.h"
-#include "daemonize.h"
-
-#define VERSION "1.0.0"
-
-#define MEASURE_PERIOD 10
-#define TEMPTHRES 25
-#define DEFAULT_TEMP (25 * 1000) /* degres */
-
-#define DEFAULT_PORT 8998
-
-/*
- * Radiator 1
- */
-#ifdef CONFIG_RADIATOR1
-#define CONFIG_DS1820
-#define GPIO_SW 7
-
-/* led in /sys/class/leds/ */
-#define LED2 "tp-link:green:wps"  /* gpio 26 */
-#define LED3 "tp-link:green:3g"   /* gpio 27 */
-#define LED4 "tp-link:green:wlan" /* gpio 0 */
-#define LED5 "tp-link:green:lan"  /* gpio 17 */
-#endif
-
-/*
- * Radiator 2
- */
-#ifdef CONFIG_RADIATOR2
-#define CONFIG_DS1820
-//#define CONFIG_SHT1x
-#include "RPi_SHT1x.h"
-#define GPIO_SW  27
-#define GPIO_LED 2
-#define GPIO_BUTTON 17
-#endif
+#include "configs.h"
+#include "util.h"
 
 #ifdef CONFIG_DS1820
 #include "ds1820.h"
 #endif
 
+#ifdef CONFIG_SHT1x
+#include "RPi_SHT1x.h"
+#endif
+
+#ifdef CONFIG_DAEMONIZE
+#include "daemonize.h"
+#endif
+
+#define VERSION "1.0.1"
+
+#define DEFAULT_TEMP (25 * 1000) /* degres */
+
 /*
  * Common structure
  */
 struct config {
+#ifdef CONFIG_SIMU
+	int temp;
+#endif
 #ifdef CONFIG_DS1820
 	char dev[20];
+	int temp;
 #endif
-#ifdef CONFIG_RADIATOR2
+#ifdef CONFIG_SHT1x
 	int humidity;
+	int temp2;
 #endif
 	int requested; /* switch on requested */
-	int temp;
 	int temp_thres;
 	int active; /* switch state */
 	sem_t mutex;
-	int temp2;
 };
 
 enum { REQ_NONE, REQ_ON, REQ_OFF };
@@ -104,10 +85,10 @@ static void update_switch(struct config *config, int req)
 	if (req) {
 		config->requested = (req == REQ_ON);
 
-#ifdef CONFIG_RADIATOR1
+#ifdef LED2
 		led_set(LED2, config->requested ? 255 : 0);
 #endif
-#ifdef CONFIG_RADIATOR2
+#ifdef GPIO_LED
 		gpio_set(GPIO_LED, config->requested);
 #endif
 	}
@@ -283,6 +264,7 @@ static int proc_socket(int s, struct config *config)
 			req = cmd.u.sw_pos /* 0 off, 1 on */ ? REQ_ON : REQ_OFF;
 			break;
 		case CMD_GET_STATUS: {
+			memset(&resp.status, 0, sizeof(union status));
 #if (defined CONFIG_RADIATOR1) || (defined CONFIG_SIMU)
 			len = sizeof(struct radiator1_status);
 			resp.status.rad1.temp = conv32(config->temp);
@@ -294,7 +276,10 @@ static int proc_socket(int s, struct config *config)
 			resp.status.rad2.temp = config->temp;
 			resp.status.rad2.tempThres = config->temp_thres;
 			resp.status.rad2.sw_pos = config->requested;
+#ifdef CONFIG_SHT1x
 			resp.status.rad2.humidity = config->humidity;
+			resp.status.rad2.temp2 = config->temp2;
+#endif
 #endif
 			update = 0;
 			break;
@@ -351,7 +336,7 @@ int main(int argc, char *argv[])
 
 	logger_init();
 
-#ifdef DAEMONIZE
+#ifdef CONFIG_DAEMONIZE
 	daemonize();
 
 	/* Daemon will handle two signals */
