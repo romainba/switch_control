@@ -23,7 +23,7 @@
  * Radiator 2 : raspberry pi3
  */
 #ifdef CONFIG_RADIATOR2
-#define GPIO_SW  27
+#define GPIO_SW 27
 #define GPIO_LED 2
 #define GPIO_BUTTON 17
 

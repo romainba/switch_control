@@ -137,6 +137,7 @@ static int proc_measure(struct config *config)
 #ifdef CONFIG_SHT1x
 	SHT1x_InitPins();
 	SHT1x_Reset();
+	sleep(MEASURE_PERIOD);
 #endif
 
 	while (1) {
