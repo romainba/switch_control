@@ -339,6 +339,7 @@ int main(int argc, char *argv[])
 #ifdef CONFIG_DAEMONIZE
 	daemonize();
 
+	INFO("daemonized\n");
 	/* Daemon will handle two signals */
 	signal(SIGINT, handle_signal);
 	signal(SIGHUP, handle_signal);
