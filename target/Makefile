@@ -1,3 +1,12 @@
+#
+# make RADIATOR=1 for server on TPLink with DS1820 and power switch
+# make RADIATOR=2 for server on Raspberry PI3 with DS1820 and SHT1x and power switch
+# make            for server on host PC  
+#
+# Options: DAEMONIZE generates server that is launched as a daemon 
+#          CONFIG_MIPS uses the mips cross compiler
+#
+
 ifdef CONFIG_MIPS
 CC=mips-openwrt-linux-gcc
 else
@@ -10,17 +19,17 @@ ccflags-y = -O2 -Wall -Wstrict-prototypes -Wno-unused-function \
 ccflags-y += -I ../app
 
 ifeq ($(RADIATOR), 1)
-ccflags-y += -DCONFIG_RADIATOR1 # TPLink with DS1820
-DS1820=y
+  ccflags-y += -DCONFIG_RADIATOR1 # TPLink with DS1820
+  DS1820=y
 else
 ifeq ($(RADIATOR), 2)
-ccflags-y += -DCONFIG_RADIATOR2 # Raspberry PI 3 with SHT1x
-ccflags-y += -DSYSLOG
-DS1820=y
-SHT1x=y
-DAEMONIZE=y
+  ccflags-y += -DCONFIG_RADIATOR2 # Raspberry PI 3 with SHT1x
+  ccflags-y += -DSYSLOG
+  DS1820=y
+  SHT1x=y
+  DAEMONIZE=y
 else
-ccflags-y += -DCONFIG_SIMU
+  ccflags-y += -DCONFIG_SIMU
 endif
 endif
 

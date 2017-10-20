@@ -49,6 +49,7 @@ void daemonize()
 	int fd;
 
 	if (pid < 0) {
+	        ERROR("daemonize failed: err %d\n", pid);
 		exit(EXIT_FAILURE);
 	}
 	if (pid > 0) {
@@ -68,6 +69,7 @@ void daemonize()
 
 	/* An error occurred */
 	if (pid < 0) {
+	        ERROR("daemonize failed: err %d\n", pid);
 		exit(EXIT_FAILURE);
 	}
 
@@ -84,9 +86,8 @@ void daemonize()
 	chdir("/");
 
 	/* Close all open file descriptors */
-	for (fd = sysconf(_SC_OPEN_MAX); fd > 0; fd--) {
+	for (fd = sysconf(_SC_OPEN_MAX); fd > 0; fd--)
 		close(fd);
-	}
 
 	/* Reopen stdin (fd = 0), stdout (fd = 1), stderr (fd = 2) */
 	stdin = fopen("/dev/null", "r");
@@ -94,16 +95,17 @@ void daemonize()
 	stderr = fopen("/dev/null", "w+");
 
 	/* Try to write PID of daemon to lockfile */
-	if (pid_file_name != NULL)
-	{
+	if (pid_file_name) {
 		char str[256];
 		pid_fd = open(pid_file_name, O_RDWR|O_CREAT, 0640);
 		if (pid_fd < 0) {
+			ERROR("open %s failed\n", pid_file_name);
 			/* Can't open lockfile */
 			exit(EXIT_FAILURE);
 		}
 		if (lockf(pid_fd, F_TLOCK, 0) < 0) {
 			/* Can't lock file */
+			ERROR("lock %s failed\n", pid_file_name);
 			exit(EXIT_FAILURE);
 		}
 		/* Get current PID */
