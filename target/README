@@ -1,0 +1,5 @@
+
+/etc/systemd/system/switch-control.service
+
+sudo systemctl status switch-control.service
+sudo systemctl restart switch-control.service

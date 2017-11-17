@@ -20,6 +20,7 @@
 #include "discover.h"
 #include "configs.h"
 #include "util.h"
+#include "data.h"
 
 #ifdef CONFIG_DS1820
 #include "ds1820.h"
@@ -33,6 +34,10 @@
 #include "daemonize.h"
 #endif
 
+#ifdef CONFIG_DATABASE
+#include "database.h"
+#endif
+
 #define VERSION "1.0.1"
 
 #define DEFAULT_TEMP (25 * 1000) /* degres */
@@ -40,22 +45,21 @@
 /*
  * Common structure
  */
+
 struct config {
-#ifdef CONFIG_SIMU
-	int temp;
-#endif
+	struct data data, prev_data;
+
 #ifdef CONFIG_DS1820
 	char dev[20];
-	int temp;
 #endif
 #ifdef CONFIG_SHT1x
-	int humidity;
 	int temp2;
 #endif
 	int requested; /* switch on requested */
 	int temp_thres;
-	int active; /* switch state */
 	sem_t mutex;
+
+	int db_connected;
 };
 
 enum { REQ_NONE, REQ_ON, REQ_OFF };
@@ -66,6 +70,7 @@ static char discover_name[] = "switch discover";
 static char measure_name[]  = "switch measure";
 static char button_name[]   = "switch button";
 static char socket_name[]   = "switch socket";
+
 
 static inline void switch_set(int on)
 {
@@ -78,7 +83,7 @@ static inline void switch_set(int on)
 
 static void update_switch(struct config *config, int req)
 {
-	int new_active = 0;
+	int new_active = 0, store = (req == 0);
 
 	sem_wait(&config->mutex);
 
@@ -94,14 +99,25 @@ static void update_switch(struct config *config, int req)
 	}
 
 	if (config->requested)
-		new_active = (config->temp <= config->temp_thres);
+		new_active = (config->data.temp <= config->temp_thres);
 
 	DEBUG("requested %d active %d\n", config->requested, new_active);
 
-	if (config->active != new_active) {
+	if (config->data.active != new_active) {
 		switch_set(new_active);
-		config->active = new_active;
+		config->data.active = new_active;
+		store = 1;
 	}
+
+	/* store only if data has changed */
+	if (!store &&
+	    memcmp(&config->data, &config->prev_data, sizeof(struct data))) {
+		memcpy(&config->prev_data, &config->data, sizeof(struct data));
+		store = 1;
+	}
+	
+	if (config->db_connected && store && db_measure_insert(&config->data))
+		ERROR("db_measure_insert failed\n");
 
 	sem_post(&config->mutex);
 }
@@ -116,7 +132,7 @@ static void init_switch(struct config *config)
 	gpio_conf(GPIO_SW, GPIO_MODE_OUT, NULL);
 #endif
 
-	config->active = 1;
+	config->data.active = 1;
 	sem_init(&config->mutex, 0, 1);
 	update_switch(config, REQ_OFF);
 
@@ -125,8 +141,9 @@ static void init_switch(struct config *config)
 
 static int proc_measure(struct config *config)
 {
-	config->temp = 23 * 1000;
-
+	config->data.temp = 23 * 1000;
+	int cnt = 0;
+	
 #ifdef CONFIG_DS1820
 	if (ds1820_search(config->dev)) {
 		ERROR("Did not find any sensor");
@@ -143,7 +160,7 @@ static int proc_measure(struct config *config)
 	while (1) {
 
 #ifdef CONFIG_DS1820
-		if (ds1820_get_temp(config->dev, &config->temp)) {
+		if (ds1820_get_temp(config->dev, &config->data.temp)) {
 			ERROR("sensor reading failed");
 			return 1;
 		}
@@ -181,10 +198,18 @@ static int proc_measure(struct config *config)
 		DEBUG("temp %0.2f, humidity %0.2f\n", temp, humi);
 
 		config->temp2 = (int)(temp * 1000.0);
-		config->humidity = (int)(humi * 1000.0);
+		config->data.humidity = (int)(humi * 1000.0);
 #endif
 		update_switch(config, 0);
 
+		if (config->db_connected) {
+			cnt++;
+			if (cnt > STORE_PERIOD / MEASURE_PERIOD) {
+				if (db_measure_insert(&config->data))
+					ERROR("db_database_insert failed\n");
+				cnt = 0;
+			}
+		}
 		sleep(MEASURE_PERIOD);
 	}
 	return 0;
@@ -268,17 +293,17 @@ static int proc_socket(int s, struct config *config)
 			memset(&resp.status, 0, sizeof(union status));
 #if (defined CONFIG_RADIATOR1) || (defined CONFIG_SIMU)
 			len = sizeof(struct radiator1_status);
-			resp.status.rad1.temp = conv32(config->temp);
+			resp.status.rad1.temp = conv32(config->data.temp);
 			resp.status.rad1.tempThres = conv32(config->temp_thres);
 			resp.status.rad1.sw_pos = conv32(config->requested);
 #endif
 #ifdef CONFIG_RADIATOR2
 			len = sizeof(struct radiator2_status);
-			resp.status.rad2.temp = config->temp;
+			resp.status.rad2.temp = config->data.temp;
 			resp.status.rad2.tempThres = config->temp_thres;
 			resp.status.rad2.sw_pos = config->requested;
 #ifdef CONFIG_SHT1x
-			resp.status.rad2.humidity = config->humidity;
+			resp.status.rad2.humidity = config->data.humidity;
 			resp.status.rad2.temp2 = config->temp2;
 #endif
 #endif
@@ -323,7 +348,8 @@ int main(int argc, char *argv[])
 	char *buffer, *if_name;
 	int port = DEFAULT_PORT;
 	int meas_pid = 0, len = strlen(argv[0]);
-
+	char query[500];
+	
 	if (argc < 2 || argc > 4) {
 		printf("usage: %s <name> [<ethernet if> [<port>]]\n"
 		       "Ver %s\n", argv[0], VERSION);
@@ -394,6 +420,12 @@ int main(int argc, char *argv[])
 	}
 #endif
 
+#ifdef CONFIG_DATABASE
+	if (db_connect() == 0)
+		config->db_connected = 1;
+	DEBUG("db_connect %s\n", config->db_connected ? "ok" : "failed");
+#endif
+	
 	/* lauch proc_measure process */
 	strncpy(argv[0], measure_name, len);
 	ret = fork();
@@ -472,6 +504,9 @@ error:
 			break;
 		DEBUG("proc %d ended", pid);
 	}
+
+	if (config->db_connected)
+		db_disconnect();
 
 	if (config && shmdt(config))
 		ERROR("shmdt failed: %s", strerror(errno));

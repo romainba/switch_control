@@ -1,7 +1,8 @@
 #ifndef __CONFIGS_H__
 #define __CONFIGS_H__
 
-#define MEASURE_PERIOD 10
+#define MEASURE_PERIOD 10 /* sec between measurement */
+#define STORE_PERIOD 120 /* sec between db store */
 #define TEMPTHRES 25
 #define DEFAULT_PORT 8998
 
@@ -9,6 +10,7 @@
  * Radiator 1 : openwrt TPLink
  */
 #ifdef CONFIG_RADIATOR1
+#define MODULE_ID 1
 #define SWAP_ENDIAN
 #define GPIO_SW 7
 
@@ -23,6 +25,7 @@
  * Radiator 2 : raspberry pi3
  */
 #ifdef CONFIG_RADIATOR2
+#define MODULE_ID 2
 #define GPIO_SW 27
 #define GPIO_LED 2
 #define GPIO_BUTTON 17
@@ -33,6 +36,10 @@
 #define RPI_GPIO_SHT1x_DATA 4
 #endif
 
+#endif /* RADIATOR2 */
+
+#ifndef MODULE_ID
+#define MODULE_ID 0 /* default */
 #endif
 
 #endif

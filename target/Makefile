@@ -30,16 +30,20 @@ ifeq ($(RADIATOR), 2)
   DAEMONIZE=y
 else
   ccflags-y += -DCONFIG_SIMU
+  DATABASE=y
 endif
 endif
 
 ccflags-$(DAEMONIZE) += -DCONFIG_DAEMONIZE
 ccflags-$(DS1820) += -DCONFIG_DS1820
 ccflags-$(SHT1x) += -DCONFIG_SHT1x
+ccflags-$(DATABASE) += -DCONFIG_DATABASE `mysql_config --cflags`
 
-LDFLAGS = -pthread
+LDFLAGS-y = -pthread
+LDFLAGS-$(DATABASE) += `mysql_config --libs`    
 
-BIN = server toggle_mode index.cgi
+BIN = server toggle_mode
+# BIN += index.cgi
 
 all: $(BIN)
 
@@ -47,6 +51,7 @@ SERVER-y = util.o discover.o server_switch.o
 SERVER-$(SHT1x) += RPi_SHT1x.o
 SERVER-$(DS1820) += ds1820.o
 SERVER-$(DAEMONIZE) += daemonize.o
+SERVER-$(DATABASE) += database.o
 
 TOGGLE-y = util.o toggle_mode.o
 INDEX-y = ds1820.o index.o
@@ -54,7 +59,7 @@ INDEX-y = ds1820.o index.o
 OBJS = $(SERVER-y) $(TOGGLE-y) $(INDEX-y)
 
 server: $(SERVER-y)
-	$(CC) $(LDFLAGS) -o $@ $^
+	$(CC) -o $@ $^ $(LDFLAGS-y)
 
 toggle_mode: $(TOGGLE-y)
 	$(CC) -o $@ $^
