@@ -7,9 +7,11 @@
   </head>
                                 
   <body>
+    <form id="buttons"></form>
     <form>
-      <input type="button" value="Temperature" onclick="showChart('temperature');" />
-      <input type="button" value="Radiators" onclick="showChart('radiator');" />
+      <input type="button" value="<<" onclick="prev();" />
+      <span id="date"></span>
+      <input type="button" value=">>" onclick="next();" />
     </form>
     <div id="chart"></div>
   </body>

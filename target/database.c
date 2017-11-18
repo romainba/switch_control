@@ -47,7 +47,7 @@ int db_connect(void)
 		DEBUG("creating table 'measures'");
 		if (mysql_query(mysql, "CREATE TABLE measures("
 			"Id INT PRIMARY KEY AUTO_INCREMENT, "
-			"module INT, date DATE, temp INT, "
+			"module INT, date DATETIME, temp INT, "
 			"humidity INT, state INT)"))
 			goto error;
 	}
