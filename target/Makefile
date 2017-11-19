@@ -26,8 +26,9 @@ ifeq ($(RADIATOR), 2)
   ccflags-y += -DCONFIG_RADIATOR2 # Raspberry PI 3 with SHT1x
   ccflags-y += -DSYSLOG
   DS1820=y
-  SHT1x=y
+  SHT1x=n
   DAEMONIZE=y
+  DATABASE=y
 else
   ccflags-y += -DCONFIG_SIMU
   DATABASE=y

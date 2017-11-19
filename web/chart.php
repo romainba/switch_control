@@ -3,8 +3,8 @@
 const DB_NAME = "switch_control";
 const DB_IP = "localhost";
 const DB_USERNAME = "root";
-const DB_PASSWORD = "abilis";
-//const DB_PASSWORD = "toto1234";
+//const DB_PASSWORD = "abilis";
+const DB_PASSWORD = "toto1234";
 const DB_TABLE = "measures";
 
 $mysql = mysql_connect('localhost', DB_USERNAME, DB_PASSWORD)
@@ -21,14 +21,20 @@ $modules = array(
 
 switch ($type) {
 case 'module':
-    $data = '';
-    foreach ($modules as $m) 
-        $data .= '<input type="button" value="'.$m[1].'" onclick="changeModule('.$m[0].');" />';
+    $v = $_POST['value'];
+    $data = 'Mesure <select id="module" onchange="changeModule()">';
+    foreach ($modules as $m) {
+        $data .= '<option value='.$m[0];
+        if ($m[0] == $v)
+             $data .= ' selected';
+        $data .= '>'.$m[1].'</option>';
+    }
+    $data .= '</select>';
     break;
-    
+
 case 'measure':
     $data= array();
-    
+
     $begin = $_POST['begin'];
     $end = $_POST['end'];
     $module = $_POST['module'];
@@ -47,15 +53,15 @@ case 'measure':
     //$data[] = array('Date', 'Temp', 'Humidity', 'Active');
     $d_day = DateInterval::createFromDateString('1 day');
     $d_mount = DateInterval::createFromDateString('1 mount');
-            
+
     if (($b->diff($e)) <= $d_day) {
 
         /* report all measurements : scatter plot */
         while ($v = mysql_fetch_array($res, MYSQL_ASSOC)) {
             $d = new DateTime($v['date']);
             $data[] = array(
-                $d->format("Y/m/d H:I"), intval($v['temp']),
-                intval($v['humidity']), intval($v['state']));
+                $d->format("Y/m/d H:i"), intval($v['temp'])/1000.,
+                intval($v['humidity'])/100., intval($v['state']));
         }
 
     } else if  (($b->diff($e)) <= $d_mount) {
@@ -71,10 +77,11 @@ case 'measure':
         $period = new DatePeriod($b, $d_mount, $e);
         foreach($period as $dt)
             $data[$dt->format("%Y-%M")] = array(0, 0, 0);
-        
+
         $report = array();
         foreach($data as $key => $u)
-            $report[] = array($key, $u[0], $u[1], $u[2]);
+            $report[] = array($key, intval($u[0])/1000.,
+	    	      intval($u[1])/100., $u[2]);
     }
 
     mysql_free_result($res);

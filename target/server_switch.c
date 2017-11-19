@@ -60,6 +60,7 @@ struct config {
 	sem_t mutex;
 
 	int db_connected;
+	int cnt;
 };
 
 enum { REQ_NONE, REQ_ON, REQ_OFF };
@@ -83,7 +84,7 @@ static inline void switch_set(int on)
 
 static void update_switch(struct config *config, int req)
 {
-	int new_active = 0, store = (req == 0);
+	int new_active = 0, store = req;
 
 	sem_wait(&config->mutex);
 
@@ -101,7 +102,8 @@ static void update_switch(struct config *config, int req)
 	if (config->requested)
 		new_active = (config->data.temp <= config->temp_thres);
 
-	DEBUG("requested %d active %d\n", config->requested, new_active);
+	DEBUG("requested %d active %d store %d cnt %d\n", config->requested,
+	      new_active, store, config->cnt);
 
 	if (config->data.active != new_active) {
 		switch_set(new_active);
@@ -109,13 +111,21 @@ static void update_switch(struct config *config, int req)
 		store = 1;
 	}
 
-	/* store only if data has changed */
-	if (!store &&
-	    memcmp(&config->data, &config->prev_data, sizeof(struct data))) {
-		memcpy(&config->prev_data, &config->data, sizeof(struct data));
-		store = 1;
+	if (!store) {
+		config->cnt++;
+		if (config->cnt > STORE_PERIOD / MEASURE_PERIOD) {
+			DEBUG("period\n");
+			/* store only if data has changed */
+			if (memcmp(&config->data, &config->prev_data,
+				   sizeof(struct data)))
+				store = 1;
+			config->cnt = 0;
+		}
 	}
-	
+
+	if (store)
+		memcpy(&config->prev_data, &config->data, sizeof(struct data));
+
 	if (config->db_connected && store && db_measure_insert(&config->data))
 		ERROR("db_measure_insert failed\n");
 
@@ -143,7 +153,7 @@ static int proc_measure(struct config *config)
 {
 	config->data.temp = 23 * 1000;
 	int cnt = 0;
-	
+
 #ifdef CONFIG_DS1820
 	if (ds1820_search(config->dev)) {
 		ERROR("Did not find any sensor");
@@ -157,6 +167,7 @@ static int proc_measure(struct config *config)
 	sleep(MEASURE_PERIOD);
 #endif
 
+	DEBUG("%s starting\n", __func__);
 	while (1) {
 
 #ifdef CONFIG_DS1820
@@ -202,14 +213,6 @@ static int proc_measure(struct config *config)
 #endif
 		update_switch(config, 0);
 
-		if (config->db_connected) {
-			cnt++;
-			if (cnt > STORE_PERIOD / MEASURE_PERIOD) {
-				if (db_measure_insert(&config->data))
-					ERROR("db_database_insert failed\n");
-				cnt = 0;
-			}
-		}
 		sleep(MEASURE_PERIOD);
 	}
 	return 0;
@@ -234,6 +237,7 @@ static int proc_button(struct config *config)
 
 	ret = read(fds.fd, str, sizeof(str));
 
+	DEBUG("%s starting\n", __func__);
 	while (1) {
 		ret = poll(&fds, 1, -1);
 		if (ret < 0) {
@@ -257,6 +261,7 @@ static int proc_socket(int s, struct config *config)
 	struct cmd cmd;
 	int ret, req, n, update, len, id;
 
+	DEBUG("%s starting\n", __func__);
 	while (1) {
 		/* wait event */
 		ret = poll(&fds, 1, -1);
@@ -349,7 +354,7 @@ int main(int argc, char *argv[])
 	int port = DEFAULT_PORT;
 	int meas_pid = 0, len = strlen(argv[0]);
 	char query[500];
-	
+
 	if (argc < 2 || argc > 4) {
 		printf("usage: %s <name> [<ethernet if> [<port>]]\n"
 		       "Ver %s\n", argv[0], VERSION);
@@ -366,7 +371,7 @@ int main(int argc, char *argv[])
 #ifdef CONFIG_DAEMONIZE
 	daemonize();
 
-	INFO("daemonized\n");
+	DEBUG("daemonized\n");
 	/* Daemon will handle two signals */
 	signal(SIGINT, handle_signal);
 	signal(SIGHUP, handle_signal);
@@ -388,18 +393,21 @@ int main(int argc, char *argv[])
 	}
 	discover_pid = ret;
 
+	DEBUG("shm\n");
 	/* shared memory between all child processes */
 	shmid = shmget(SHM_KEY + port, sizeof(struct config), 0644 | IPC_CREAT);
 	if (shmid < 0) {
 		ERROR("shmget failed: %s", strerror(errno));
 		goto error;
 	}
+	DEBUG("shmget ok\n");
 
 	config = shmat(shmid, NULL, 0);
 	if (config == (void *)(-1)) {
 		ERROR("shmat failed");
 		goto error;
 	}
+	DEBUG("shmat ok\n");
 
 	memset(config, 0, sizeof(struct config));
 	config->temp_thres = DEFAULT_TEMP;
@@ -425,7 +433,7 @@ int main(int argc, char *argv[])
 		config->db_connected = 1;
 	DEBUG("db_connect %s\n", config->db_connected ? "ok" : "failed");
 #endif
-	
+
 	/* lauch proc_measure process */
 	strncpy(argv[0], measure_name, len);
 	ret = fork();
@@ -454,7 +462,7 @@ int main(int argc, char *argv[])
 	bind(sock, (struct sockaddr *) &sin, sizeof(sin));
 
 	listen(sock, 5);
-	INFO("listening port %d\n", port);
+	DEBUG("listening port %d\n", port);
 
 	while (1) {
 

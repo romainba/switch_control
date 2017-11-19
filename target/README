@@ -3,3 +3,7 @@
 
 sudo systemctl status switch-control.service
 sudo systemctl restart switch-control.service
+
+SHM
+ipcs -m
+ipcrm -M <shmkey>

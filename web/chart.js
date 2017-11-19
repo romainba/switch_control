@@ -14,8 +14,10 @@ Date.prototype.format = function() {
 function drawChart() {
     var next = new Date;
     next.setDate(date.getDate() + 1);
+
     var cell = document.getElementById('date');
     cell.innerHTML = date.format();
+
     __drawChart('chart', null,
 	      date.format(),
 	      next.format(),
@@ -29,6 +31,9 @@ function __drawChart(elem, title, begin, end, hTitle) {
 	'begin'  : begin,
 	'end'    : end,
     };
+
+    if (width == null)
+	width = $("#chart").css("width");
 
     $.ajax({
 	type: 'POST',
@@ -62,13 +67,14 @@ function __drawChart(elem, title, begin, end, hTitle) {
     })
 }
 
-function setModule(elem) {
+function setModule(elem, module) {
     var req = {
 	'type'   : 'module',
+	'value'  : module,
     };
 
     console.log("setModule");
-    
+
     $.ajax({
 	type: 'POST',
 	url: 'chart.php',
@@ -94,25 +100,25 @@ function next() {
     drawChart();
 }
 
-function changeModule(id) {
-    module = id;
+function changeModule() {
+    module = $("#module").val();
+    console.log("module " + module);
     drawChart();
-}    
+}
 
 $(document).ready(function() {
 
-    module = 0;
-    width = $("#chart").css("width");
+    module = 2;
     date = new Date();
-    
-    setModule('buttons');
-    //drawCharts();
-    
+
+    setModule('buttons', module);
+    drawChart();
+
     $(window).on('resize', function() {
 	console.log("resize");
 	var w = $("#chart").css("width");
 	if (w != width) {
-    	    width = w;
+	    width = w;
 	    drawCharts();
 	}
     });

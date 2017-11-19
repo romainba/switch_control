@@ -2,7 +2,7 @@
 #define __CONFIGS_H__
 
 #define MEASURE_PERIOD 10 /* sec between measurement */
-#define STORE_PERIOD 120 /* sec between db store */
+#define STORE_PERIOD (60*5) /* sec between db store */
 #define TEMPTHRES 25
 #define DEFAULT_PORT 8998
 
@@ -26,8 +26,8 @@
  */
 #ifdef CONFIG_RADIATOR2
 #define MODULE_ID 2
-#define GPIO_SW 27
-#define GPIO_LED 2
+#define GPIO_SW 4
+#define GPIO_LED 11
 #define GPIO_BUTTON 17
 
 #ifdef CONFIG_SHT1x
