@@ -1,10 +1,16 @@
 <?php
 
+require_once('control.php');
+
+session_start();
+
+$ctrl_allowed = isset($_SESSION['use']) != "";
+
 const DB_NAME = "switch_control";
 const DB_IP = "localhost";
 const DB_USERNAME = "root";
-//const DB_PASSWORD = "abilis";
-const DB_PASSWORD = "toto1234";
+const DB_PASSWORD = "abilis";
+//const DB_PASSWORD = "toto1234";
 const DB_TABLE = "measures";
 
 $mysql = mysql_connect('localhost', DB_USERNAME, DB_PASSWORD)
@@ -20,7 +26,8 @@ $modules = array(
     array(2, "Radiateur 2"));
 
 switch ($type) {
-case 'module':
+
+case 'moduleLst':
     $v = $_POST['value'];
     $data = 'Mesure <select id="module" onchange="changeModule()">';
     foreach ($modules as $m) {
@@ -32,9 +39,33 @@ case 'module':
     $data .= '</select>';
     break;
 
-case 'measure':
-    $data= array();
+case 'switch':
+    if ($ctrl_allowed == 0)
+        break;
+    
+    $status = getStatus(8998);
+    $data = '<input id="switchBtn" type="button" value=';
+    if ($status[1])
+        $data .= '"off"';
+    else
+        $data .= '"on"';
+    $data .= ' onclick="toggleSwitch()" />';
+    break;
 
+case 'toggleSwitch':
+    if (!$ctrl_allowed)
+        break;
+
+    toggleSwitch(8998);
+
+    $status = getStatus(8998);
+    if ($status[1])
+        $data = 'off';
+    else
+        $data = 'on';
+    break;
+    
+case 'measure':
     $begin = $_POST['begin'];
     $end = $_POST['end'];
     $module = $_POST['module'];

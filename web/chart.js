@@ -67,13 +67,13 @@ function __drawChart(elem, title, begin, end, hTitle) {
     })
 }
 
-function setModule(elem, module) {
+function setElem(elem, module) {
     var req = {
-	'type'   : 'module',
+	'type' : elem,
 	'value'  : module,
     };
 
-    console.log("setModule");
+    console.log("set " . elem);
 
     $.ajax({
 	type: 'POST',
@@ -81,6 +81,7 @@ function setModule(elem, module) {
 	data: req,
 	dataType: "json",
 	success: function(response) {
+	    console.log(response);
 	    var cell = document.getElementById(elem);
 	    cell.innerHTML = response;
 	},
@@ -106,14 +107,36 @@ function changeModule() {
     drawChart();
 }
 
+function toggleSwitch() {
+    var req = {
+	'type' : 'toggleSwitch'
+    };
+
+    $.ajax({
+	type: 'POST',
+	url: 'chart.php',
+	data: req,
+	dataType: "json",
+	success: function(response) {
+	    var cell = document.getElementById('switchBtn');
+	    cell.innerHTML = response;
+	},
+	error: function(response) {
+	    alert("ajax module failed");
+	}
+    })
+}
+
 $(document).ready(function() {
 
     module = 2;
     date = new Date();
-
-    setModule('buttons', module);
+    
+    setElem('moduleLst', module);
     drawChart();
 
+    setElem('switch');
+    
     $(window).on('resize', function() {
 	console.log("resize");
 	var w = $("#chart").css("width");
