@@ -15,6 +15,8 @@ function drawChart() {
     var next = new Date;
     next.setDate(date.getDate() + 1);
 
+    console.log("drawchart");
+
     var cell = document.getElementById('date');
     cell.innerHTML = date.format();
 
@@ -34,6 +36,8 @@ function __drawChart(elem, title, begin, end, hTitle) {
 
     if (width == null)
 	width = $("#chart").css("width");
+
+    console.log(width);
 
     $.ajax({
 	type: 'POST',
@@ -58,7 +62,9 @@ function __drawChart(elem, title, begin, end, hTitle) {
 	    	data.addRow([new Date(e[0]), e[1], e[2], e[3]]);
 	    });
 	    //var data = new google.visualization.arrayToDataTable(response);
-	    var chart = new google.visualization.LineChart(document.getElementById(elem));
+	    var cell = document.getElementById(elem);
+	    console.log(cell);
+	    var chart = new google.visualization.LineChart(cell);
             chart.draw(data, options);
 	},
 	error: function(response) {
@@ -67,13 +73,11 @@ function __drawChart(elem, title, begin, end, hTitle) {
     })
 }
 
-function setElem(elem, module) {
+function setElem(elem, value) {
     var req = {
 	'type' : elem,
-	'value'  : module,
+	'value'  : value,
     };
-
-    console.log("set " . elem);
 
     $.ajax({
 	type: 'POST',
@@ -81,7 +85,7 @@ function setElem(elem, module) {
 	data: req,
 	dataType: "json",
 	success: function(response) {
-	    console.log(response);
+	    //console.log(response);
 	    var cell = document.getElementById(elem);
 	    cell.innerHTML = response;
 	},
@@ -131,18 +135,16 @@ $(document).ready(function() {
 
     module = 2;
     date = new Date();
-    
-    setElem('moduleLst', module);
-    drawChart();
 
+    setElem('moduleLst', module);
     setElem('switch');
-    
+
     $(window).on('resize', function() {
 	console.log("resize");
 	var w = $("#chart").css("width");
 	if (w != width) {
 	    width = w;
-	    drawCharts();
+	    drawChart();
 	}
     });
 })

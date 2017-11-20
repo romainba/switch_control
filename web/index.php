@@ -18,7 +18,7 @@
 ?>
 <?php
         if ($_COOKIE["user"])
-            echo "<div>Welcome " . $_COOKIE["user"] . "</div";
+            echo "<div>Welcome " . $_COOKIE["user"] . "</div>";
 ?>
 	<div id="moduleLst"></div>
     <div>

@@ -9,8 +9,8 @@ $ctrl_allowed = isset($_SESSION['use']) != "";
 const DB_NAME = "switch_control";
 const DB_IP = "localhost";
 const DB_USERNAME = "root";
-const DB_PASSWORD = "abilis";
-//const DB_PASSWORD = "toto1234";
+//const DB_PASSWORD = "abilis";
+const DB_PASSWORD = "toto1234";
 const DB_TABLE = "measures";
 
 $mysql = mysql_connect('localhost', DB_USERNAME, DB_PASSWORD)
