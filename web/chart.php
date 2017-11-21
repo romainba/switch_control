@@ -2,9 +2,7 @@
 
 require_once('control.php');
 
-session_start();
-
-$ctrl_allowed = isset($_SESSION['use']) != "";
+$ctrl_allowed = isset($_COOKIE['user']);
 
 const DB_NAME = "switch_control";
 const DB_IP = "localhost";
@@ -40,9 +38,9 @@ case 'moduleLst':
     break;
 
 case 'switch':
-    if ($ctrl_allowed == 0)
+    if (!$ctrl_allowed)
         break;
-    
+
     $status = getStatus(8998);
     $data = '<input id="switchBtn" type="button" value=';
     if ($status[1])

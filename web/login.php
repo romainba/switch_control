@@ -1,6 +1,8 @@
 <?php
+//
+// login script
+//
 
-session_start();
 $pwd = '$2y$10$hkf00kcO/CdEGL0l6aaMzOlrzGP1P8ICdGqk5reS.EL8lKDKACmDG';
     
 if (isset($_POST['login'])) {
@@ -28,11 +30,11 @@ if (isset($_POST['login'])) {
 
     <table width="200" border="0">
   <tr>
-    <td>  UserName</td>
+    <td> Username</td>
     <td> <input type="text" name="user" > </td>
   </tr>
   <tr>
-    <td> PassWord  </td>
+    <td> Password  </td>
     <td><input type="password" name="pass"></td>
   </tr>
   <tr>

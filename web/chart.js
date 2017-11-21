@@ -5,7 +5,6 @@ var date;
 var module;
 
 google.charts.load('current', {'packages':['corechart']});
-google.charts.setOnLoadCallback(drawChart);
 
 Date.prototype.format = function() {
     return [this.getFullYear(), '-', this.getMonth()+1, '-', this.getDate()].join('');
@@ -21,9 +20,9 @@ function drawChart() {
     cell.innerHTML = date.format();
 
     __drawChart('chart', null,
-	      date.format(),
-	      next.format(),
-	      null);
+		date.format(),
+		next.format(),
+		null);
 }
 
 function __drawChart(elem, title, begin, end, hTitle) {
@@ -33,11 +32,6 @@ function __drawChart(elem, title, begin, end, hTitle) {
 	'begin'  : begin,
 	'end'    : end,
     };
-
-    if (width == null)
-	width = $("#chart").css("width");
-
-    console.log(width);
 
     $.ajax({
 	type: 'POST',
@@ -135,9 +129,12 @@ $(document).ready(function() {
 
     module = 2;
     date = new Date();
+    width = $("#chart").css("width");
 
     setElem('moduleLst', module);
     setElem('switch');
+
+    google.charts.setOnLoadCallback(drawChart);
 
     $(window).on('resize', function() {
 	console.log("resize");

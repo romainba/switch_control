@@ -10,15 +10,13 @@
 	session_start();
 
 	if (!isset($_SESSION['use'])) {
-        if ($_COOKIE["user"]) {
-            $_SESSION['use'] = $_COOKIE["user"];
-            setcookie("user", $_COOKIE["user"], time() + 60*60*24*360);
+        if ($_COOKIE['user']) {
+            $_SESSION['use'] = $_COOKIE['user'];
+            setcookie('user', $_COOKIE['user'], time() + 60*60*24*360);
         }
     }
-?>
-<?php
-        if ($_COOKIE["user"])
-            echo "<div>Welcome " . $_COOKIE["user"] . "</div>";
+    if ($_COOKIE['user'])
+        echo "<div>Welcome " . $_COOKIE['user'] . "</div>";
 ?>
 	<div id="moduleLst"></div>
     <div>
@@ -29,7 +27,7 @@
     </div>
     <div id="chart"></div>
 <?php
-        if ($_COOKIE["user"])
+        if ($_COOKIE['user'])
             echo "<a href='logout.php'>Logout</a>";
         else
             echo "<a href='login.php'>Login</a>";

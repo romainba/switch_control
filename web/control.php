@@ -1,6 +1,6 @@
 <?php
 
-const HOSTNAME = '10.41.22.211';
+const HOSTNAME = 'localhost';
 
 const CMD_SET_SW_POS = 0;
 const CMD_TOGGLE_MODE = 1;
@@ -8,6 +8,11 @@ const CMD_SET_TEMP = 2;
 const CMD_GET_STATUS = 3;
 
 $service_port = 8998;
+
+
+function getPort($module)
+{
+}
 
 function getStatus($port)
 {
