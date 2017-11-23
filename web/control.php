@@ -20,13 +20,15 @@ function getStatus($port)
 
     $s = socket_create(AF_INET, SOCK_STREAM, SOL_TCP);
     if ($s === false) {
-        echo "socket_create() a échoué : raison :  " . socket_strerror(socket_last_error()) . "\n";
+        echo "socket_create() a échoué : raison :  " .
+	     socket_strerror(socket_last_error()) . "\n";
         return;
     }
 
     $result = socket_connect($s, $address, $port);
     if ($s === false) {
-        echo "socket_connect() a échoué : raison : ($result) " . socket_strerror(socket_last_error($s)) . "\n";
+        echo "socket_connect() a échoué : raison : ($result) " .
+	     socket_strerror(socket_last_error($s)) . "\n";
         return;
     }
 
@@ -34,12 +36,12 @@ function getStatus($port)
 
     $str = '';
     foreach ($buf as $b)
-        $str .= pack("L", $b);
+        $str .= pack("V", $b);
 
-    socket_write($s, $str, sizeof($buf));
-   
+    socket_write($s, $str, sizeof($buf) * 4);
+
     $out = socket_read($s, 2048);
-    $buf = unpack("L*", $out);
+    $buf = unpack("V*", $out);
 
     socket_close($s);
 
@@ -52,13 +54,15 @@ function toggleSwitch($port)
 
     $s = socket_create(AF_INET, SOCK_STREAM, SOL_TCP);
     if ($s === false) {
-        echo "socket_create() a échoué : raison :  " . socket_strerror(socket_last_error()) . "\n";
+        echo "socket_create() a échoué : raison :  " .
+	     socket_strerror(socket_last_error()) . "\n";
         return;
     }
 
     $result = socket_connect($s, $address, $port);
     if ($s === false) {
-        echo "socket_connect() a échoué : raison : ($result) " . socket_strerror(socket_last_error($s)) . "\n";
+        echo "socket_connect() a échoué : raison : ($result) " .
+	     socket_strerror(socket_last_error($s)) . "\n";
         return;
     }
 
@@ -68,7 +72,7 @@ function toggleSwitch($port)
     foreach ($buf as $b)
         $str .= pack("L", $b);
 
-    socket_write($s, $str, sizeof($buf));
+    socket_write($s, $str, sizeof($buf) * 4);
 
     socket_close($s);
 }

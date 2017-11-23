@@ -62,7 +62,14 @@ case 'toggleSwitch':
     else
         $data = 'on';
     break;
-    
+
+case 'switchStatus':
+    $status = getStatus(8998);
+    $data = "threshold " . $status[0]/1000.;
+    $data .= ", " . ($status[1] ? "ON" : "OFF");
+    $data .= ", temp " . $status[2]/1000.;
+    break;
+
 case 'measure':
     $begin = $_POST['begin'];
     $end = $_POST['end'];

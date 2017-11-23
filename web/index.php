@@ -19,6 +19,7 @@
         echo "<div>Welcome " . $_COOKIE['user'] . "</div>";
 ?>
 	<div id="moduleLst"></div>
+	<div id="switchStatus"></div>
     <div>
       <input type="button" value="<<" onclick="prev();" />
       <span id="date"></span>

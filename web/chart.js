@@ -117,7 +117,7 @@ function toggleSwitch() {
 	dataType: "json",
 	success: function(response) {
 	    var cell = document.getElementById('switchBtn');
-	    cell.innerHTML = response;
+	    cell.value = response;
 	},
 	error: function(response) {
 	    alert("ajax module failed");
@@ -133,6 +133,7 @@ $(document).ready(function() {
 
     setElem('moduleLst', module);
     setElem('switch');
+    setElem('switchStatus');
 
     google.charts.setOnLoadCallback(drawChart);
 
