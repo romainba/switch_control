@@ -50,15 +50,13 @@ function __drawChart(elem, title, begin, end, hTitle) {
 		    1: { targetAxisIndex: 1, type: 'steppedArea' }
 		},
 		vAxes: {
-		    0: { title: 'temperature',
-			 viewWindowMode:'explicit',
+		    0: { viewWindowMode:'explicit',
 			 viewWindow: {
 			     max:5,
 			     min:25
 			 }
 		       },
-		    1: { title: 'activation',
-			 viewWindowMode:'explicit',
+		    1: { viewWindowMode:'explicit',
 			 viewWindow: {
 			     max:0,
 			     min:5
@@ -69,9 +67,9 @@ function __drawChart(elem, title, begin, end, hTitle) {
 	    };
 	    var data = new google.visualization.DataTable();
 	    data.addColumn('datetime', 'date');
-	    data.addColumn('number', 'temp');
+	    data.addColumn('number', 'temperature');
 	    //data.addColumn('number', 'humidity');
-	    data.addColumn('number', 'active');
+	    data.addColumn('number', 'activation');
 
 	    response.forEach(function(e) {
 		data.addRow([new Date(e[0]), e[1], /* e[2], */ e[3]]);
