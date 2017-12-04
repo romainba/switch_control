@@ -40,20 +40,41 @@ function __drawChart(elem, title, begin, end, hTitle) {
 	dataType: "json",
 	success: function(response) {
 	    var options = {
-		'title': title,
-		'width': width,
-		'height': 300,
-		'hAxis': { 'title': hTitle },
-		'backgroundColor': { 'fill': 'transparent' },
+		title: title,
+		width: width,
+		height: 300,
+		hAxis: { title: hTitle },
+		backgroundColor: { fill: 'transparent' },
+		series: {
+		    0: { targetAxisIndex: 0 },
+		    1: { targetAxisIndex: 1, type: 'steppedArea' }
+		},
+		vAxes: {
+		    0: { title: 'temperature',
+			 viewWindowMode:'explicit',
+			 viewWindow: {
+			     max:5,
+			     min:25
+			 }
+		       },
+		    1: { title: 'activation',
+			 viewWindowMode:'explicit',
+			 viewWindow: {
+			     max:0,
+			     min:5
+			 },
+			 gridlines: { count: 0 },
+		       }
+		},
 	    };
 	    var data = new google.visualization.DataTable();
 	    data.addColumn('datetime', 'date');
 	    data.addColumn('number', 'temp');
-	    data.addColumn('number', 'humidity');
+	    //data.addColumn('number', 'humidity');
 	    data.addColumn('number', 'active');
 
 	    response.forEach(function(e) {
-	    	data.addRow([new Date(e[0]), e[1], e[2], e[3]]);
+		data.addRow([new Date(e[0]), e[1], /* e[2], */ e[3]]);
 	    });
 	    //var data = new google.visualization.arrayToDataTable(response);
 	    var cell = document.getElementById(elem);
