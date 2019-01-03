@@ -1,6 +1,6 @@
 #!/usr/bin/python
 
-import serial
+import serial, struct, time
 from enum import Enum
 
 class id(Enum):
@@ -15,9 +15,9 @@ class id(Enum):
     heure_fonc = 0x1f
     ps = 0x5e
 
-    @classmethod
-    def has_value(cls, value):
-        return any(value == item.value for item in cls)
+ids = [ id.bw, id.capt_toit, id.capt_depart, id.capt_retour,
+        id.haut_ballon, id.bas_ballon, id.power, id.energy,
+        id.heure_fonc, id.ps ]
 
 class mode(Enum):
     notSync = 0
@@ -38,10 +38,10 @@ m = mode.notSync
 idx = 0
 header = []
 data = []
-len = 0
+length = 0
 
 def ebus_getch(c):
-    global m, idx, header, data, len
+    global m, idx, header, data, length, measures
 
     #~ print 'm', m, hex(c)
     if c == prefix.sync:
@@ -63,11 +63,11 @@ def ebus_getch(c):
         if idx == 5:
             m = mode.data
             idx = 0
-            len = c
+            length = c
             #~ print 'header', header
 
     elif m == mode.data or m == mode.respData:
-        if idx < len:
+        if idx < length:
             if idx > 0 and header[-1] == 0x09 and c == 0x01:
                 data.append(prefix.sync)
             else:
@@ -75,14 +75,21 @@ def ebus_getch(c):
             idx = idx + 1
 
         # crc
-        elif idx == len:
+        elif idx == length:
             #~ print 'data', data
             if data[0] == 0x41:
                 type = data[1]
                 value = (data[3] << 8) | data[2]
+                value = struct.unpack('h', struct.pack('H', value))[0]
+                try:
+                    index = ids.index(type)
+                except ValueError:
+                    index = None
 
-                if id.has_value(type):
+                if index is not None:
                     print 'type', type, 'value', value
+                    measures[index] = value
+
             m = mode.waitAck
 
     elif m == mode.waitAck:
@@ -92,6 +99,8 @@ def ebus_getch(c):
             print 'ack expected, received %x' % c
         m = mode.notSync
 
+t = time.time()
+measures = [0] * len(ids)
 
 while 1:
     try:
@@ -102,3 +111,8 @@ while 1:
 
     for c in buf:
         ebus_getch(ord(c))
+
+    if time.time() - t > 60 * 5:
+        t = time.time()
+        print measures
+        measures = [0] * len(ids)
