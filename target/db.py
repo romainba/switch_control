@@ -22,6 +22,6 @@ def checkTableExists(dbcon, tablename):
         FROM information_schema.tables
         WHERE table_name = '{0}'
         """.format(tablename.replace('\'', '\'\'')))
-    flag = dbcur.fetchone()[0] == 1
+    flag = dbcur.fetchone()[u'COUNT(*)']
     dbcur.close()
     return flag

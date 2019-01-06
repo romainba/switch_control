@@ -1,6 +1,6 @@
 #!/usr/bin/python
 
-import serial, struct, time
+import serial, struct, time, sys
 from enum import Enum
 import pymysql.cursors
 import db
@@ -19,9 +19,9 @@ class cid(Enum):
     heure_fonc = 0x1f
     ps = 0x5e
 
-cids = [ id.bw, id.capt_toit, id.capt_depart, id.capt_retour,
-         id.haut_ballon, id.bas_ballon, id.power, id.energy,
-         id.heure_fonc, id.ps ]
+cids = [ cid.bw, cid.capt_toit, cid.capt_depart, cid.capt_retour,
+         cid.haut_ballon, cid.bas_ballon, cid.power, cid.energy,
+         cid.heure_fonc, cid.ps ]
 
 class mode(Enum):
     notSync = 0
@@ -101,9 +101,12 @@ def ebus_getch(c):
 def db_create_table(con):
     try:
         with con.cursor() as cursor:
-            sql = "create table db0(Id INT PRIMARY KEY AUTO_INCREMENT, " +
-            "date DATETIME, bw INT, capt_toit INT, capt_depart INT, capt_retour INT, " +
-            "haut_ballon INT, bas_ballon INT, power INT, energy INT, heure_fonc INT)"
+            sql = """
+            create table db0(Id INT PRIMARY KEY AUTO_INCREMENT,
+            date DATETIME, bw INT, capt_toit INT, capt_depart INT, capt_retour INT,
+            haut_ballon INT, bas_ballon INT, power INT, energy INT, heure_fonc INT)
+            """
+            print sql
             cursor.execute(sql)
             print "added"
     finally:
@@ -115,17 +118,16 @@ def db_insert(date, data):
     con = db.connect()
     try:
         with con.cursor() as cursor:
-            sql = "insert intro " + TABLE_NAME +
-            "(date, bw, capt_toit, capt_depart, capt_retour, " +
-            "haut_ballon, bas_ballon, power, energy, heure_fonc) " +
-            "VALUES('" + date + "', " + ", ".join([str(d) for d in data]) + ")"
+            sql = "insert intro " + TABLE_NAME + \
+                  "(date, bw, capt_toit, capt_depart, capt_retour, " + \
+                  "haut_ballon, bas_ballon, power, energy, heure_fonc) " + \
+                  "VALUES('" + date + "', " + ", ".join([str(d) for d in data]) + ")"
             cursor.execute(sql)
-            print "added"
+            print "added", sql
     finally:
         con.close()
 
 
-ser = serial.Serial('/dev/ttyS0', 2400, timeout=1)
 m = mode.notSync
 idx = 0
 header = []
@@ -137,11 +139,13 @@ prevMeasures = None
 
 # create table if it does not exist
 con = db.connect()
+print db.checkTableExists(con, 'measures')
 if not db.checkTableExists(con, TABLE_NAME):
     db_create_table(con)
 con.close()
 
-return 0
+sys.exit(0)
+ser = serial.Serial('/dev/ttyS0', 2400, timeout=1)
 
 while 1:
     try:
