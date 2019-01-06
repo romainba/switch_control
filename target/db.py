@@ -4,13 +4,15 @@ DB_NAME = "switch_control"
 DB_IP = "192.168.1.114"
 DB_USERNAME = "root"
 DB_PASSWORD = "toto1234"
+DB_PORT = 3306
 
 def connect():
     return pymysql.connect(
         host=DB_IP,
         user=DB_USERNAME,
-        # password=DB_PASSWORD,
+        password=DB_PASSWORD,
         db=DB_NAME,
+        port=DB_PORT,
         charset='utf8mb4',
         cursorclass=pymysql.cursors.DictCursor)
 

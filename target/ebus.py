@@ -1,6 +1,6 @@
 #!/usr/bin/python
 
-import serial, struct, time, sys
+import serial, struct, time, sys, datetime
 from enum import Enum
 import pymysql.cursors
 import db
@@ -85,7 +85,7 @@ def ebus_getch(c):
                     index = None
 
                 if index is not None:
-                    print 'type', dtype, 'value', value
+                    #~ print 'type', dtype, 'value', value
                     measures[index] = value
 
             m = mode.waitAck
@@ -106,9 +106,8 @@ def db_create_table(con):
             date DATETIME, bw INT, capt_toit INT, capt_depart INT, capt_retour INT,
             haut_ballon INT, bas_ballon INT, power INT, energy INT, heure_fonc INT)
             """
-            print sql
             cursor.execute(sql)
-            print "added"
+            print "created table"
     finally:
         pass
 
@@ -118,13 +117,14 @@ def db_insert(date, data):
     con = db.connect()
     try:
         with con.cursor() as cursor:
-            sql = "insert intro " + TABLE_NAME + \
+            sql = "insert into " + TABLE_NAME + \
                   "(date, bw, capt_toit, capt_depart, capt_retour, " + \
                   "haut_ballon, bas_ballon, power, energy, heure_fonc) " + \
                   "VALUES('" + date + "', " + ", ".join([str(d) for d in data]) + ")"
             cursor.execute(sql)
-            print "added", sql
+            print sql
     finally:
+        con.commit()
         con.close()
 
 
@@ -139,12 +139,10 @@ prevMeasures = None
 
 # create table if it does not exist
 con = db.connect()
-print db.checkTableExists(con, 'measures')
 if not db.checkTableExists(con, TABLE_NAME):
     db_create_table(con)
 con.close()
 
-sys.exit(0)
 ser = serial.Serial('/dev/ttyS0', 2400, timeout=1)
 
 while 1:
@@ -163,7 +161,7 @@ while 1:
         continue
 
     d = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    db_insert(d, [measures[i] for i in range(8)])
+    db_insert(d, [measures[i] for i in range(9)])
 
     prevMeasures = measures
     measures = [None] * len(cids)
