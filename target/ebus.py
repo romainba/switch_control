@@ -2,8 +2,12 @@
 
 import serial, struct, time
 from enum import Enum
+import pymysql.cursors
+import db
 
-class id(Enum):
+TABLE_NAME = "db0"
+
+class cid(Enum):
     bw = 0x00
     capt_toit = 0x02 # TK0
     capt_depart = 0x05
@@ -15,9 +19,9 @@ class id(Enum):
     heure_fonc = 0x1f
     ps = 0x5e
 
-ids = [ id.bw, id.capt_toit, id.capt_depart, id.capt_retour,
-        id.haut_ballon, id.bas_ballon, id.power, id.energy,
-        id.heure_fonc, id.ps ]
+cids = [ id.bw, id.capt_toit, id.capt_depart, id.capt_retour,
+         id.haut_ballon, id.bas_ballon, id.power, id.energy,
+         id.heure_fonc, id.ps ]
 
 class mode(Enum):
     notSync = 0
@@ -33,12 +37,6 @@ class prefix(Enum):
     ack = 0x00
     nack = 0xff
 
-ser = serial.Serial('/dev/ttyS0', 2400, timeout=1)
-m = mode.notSync
-idx = 0
-header = []
-data = []
-length = 0
 
 def ebus_getch(c):
     global m, idx, header, data, length, measures
@@ -78,16 +76,16 @@ def ebus_getch(c):
         elif idx == length:
             #~ print 'data', data
             if data[0] == 0x41:
-                type = data[1]
+                dtype = data[1]
                 value = (data[3] << 8) | data[2]
                 value = struct.unpack('h', struct.pack('H', value))[0]
                 try:
-                    index = ids.index(type)
+                    index = cids.index(dtype)
                 except ValueError:
                     index = None
 
                 if index is not None:
-                    print 'type', type, 'value', value
+                    print 'type', dtype, 'value', value
                     measures[index] = value
 
             m = mode.waitAck
@@ -99,20 +97,69 @@ def ebus_getch(c):
             print 'ack expected, received %x' % c
         m = mode.notSync
 
+
+def db_create_table(con):
+    try:
+        with con.cursor() as cursor:
+            sql = "create table db0(Id INT PRIMARY KEY AUTO_INCREMENT, " +
+            "date DATETIME, bw INT, capt_toit INT, capt_depart INT, capt_retour INT, " +
+            "haut_ballon INT, bas_ballon INT, power INT, energy INT, heure_fonc INT)"
+            cursor.execute(sql)
+            print "added"
+    finally:
+        pass
+
+
+def db_insert(date, data):
+    global TABLE_NAME
+    con = db.connect()
+    try:
+        with con.cursor() as cursor:
+            sql = "insert intro " + TABLE_NAME +
+            "(date, bw, capt_toit, capt_depart, capt_retour, " +
+            "haut_ballon, bas_ballon, power, energy, heure_fonc) " +
+            "VALUES('" + date + "', " + ", ".join([str(d) for d in data]) + ")"
+            cursor.execute(sql)
+            print "added"
+    finally:
+        con.close()
+
+
+ser = serial.Serial('/dev/ttyS0', 2400, timeout=1)
+m = mode.notSync
+idx = 0
+header = []
+data = []
+length = 0
 t = time.time()
-measures = [0] * len(ids)
+measures = [None] * len(cids)
+prevMeasures = None
+
+# create table if it does not exist
+con = db.connect()
+if not db.checkTableExists(con, TABLE_NAME):
+    db_create_table(con)
+con.close()
+
+return 0
 
 while 1:
     try:
         buf = ser.read(30)
     except (OSError, serial.SerialException):
         print 'ser read failed'
-        pass
 
     for c in buf:
         ebus_getch(ord(c))
 
-    if time.time() - t > 60 * 5:
-        t = time.time()
-        print measures
-        measures = [0] * len(ids)
+    if None in measures:
+        continue
+
+    if prevMeasures == measures:
+        continue
+
+    d = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    db_insert(d, [measures[i] for i in range(8)])
+
+    prevMeasures = measures
+    measures = [None] * len(cids)
