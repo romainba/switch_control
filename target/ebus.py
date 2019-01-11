@@ -4,6 +4,7 @@ import serial, struct, time, sys, datetime
 from enum import Enum
 import pymysql.cursors
 import db
+from ebus_crc import crc8
 
 TABLE_NAME = "db0"
 
@@ -75,7 +76,14 @@ def ebus_getch(c):
         # crc
         elif idx == length:
             #~ print 'data', data
+
             if data[0] == 0x41:
+
+                if crc8(data) != c:
+                    print 'bad crc'
+                    m = mode.notSync
+                    return
+
                 dtype = data[1]
                 value = (data[3] << 8) | data[2]
                 value = struct.unpack('h', struct.pack('H', value))[0]
