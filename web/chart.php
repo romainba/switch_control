@@ -1,6 +1,6 @@
 <?php
 
-require_once('control.php');
+require_once('control_mqtt.php');
 
 $ctrl_allowed = isset($_COOKIE['user']);
 
@@ -11,72 +11,51 @@ const DB_USERNAME = "root";
 const DB_PASSWORD = "toto1234";
 const DB_TABLE = "measures";
 
-$mysql = mysql_connect('localhost', DB_USERNAME, DB_PASSWORD)
-    or die('could not connect: ' . mysql_error());
-
-mysql_select_db(DB_NAME) or die('Could not select database');
+if ($argv) {
+   for ($i = 1; $i < sizeof($argv); $i++) {
+     $g = explode('=', $argv[$i]);
+     $_POST[$g[0]] = $g[1];
+   }
+}
 
 $type = $_POST['type'];
+$module = $_POST['module'];
 
-/* modules list */
-$modules = array(
-    array(1, "Radiateur 1"),
-    array(2, "Radiateur 2"));
-
+/* request type */
 switch ($type) {
 
-case 'moduleLst':
-    $v = $_POST['value'];
-    $data = 'Mesure <select id="module" onchange="changeModule()">';
-    foreach ($modules as $m) {
-        $data .= '<option value='.$m[0];
-        if ($m[0] == $v)
-             $data .= ' selected';
-        $data .= '>'.$m[1].'</option>';
-    }
-    $data .= '</select>';
-    break;
-
-case 'switch':
-    if (!$ctrl_allowed)
-        break;
-
-    $status = getStatus(8998);
-    $data = '<input id="switchBtn" type="button" value=';
-    if ($status[1])
-        $data .= '"off"';
-    else
-        $data .= '"on"';
-    $data .= ' onclick="toggleSwitch()" />';
-    break;
-
-case 'toggleSwitch':
-    if (!$ctrl_allowed)
-        break;
-
-    toggleSwitch(8998);
-
-    $status = getStatus(8998);
-    if ($status[1])
-        $data = 'off';
-    else
-        $data = 'on';
-    break;
-
 case 'switchStatus':
-    $status = getStatus(8998);
-    $data = "threshold " . $status[0]/1000.;
-    $data .= ", " . ($status[1] ? "ON" : "OFF");
-    $data .= ", temp " . $status[2]/1000.;
-    break;
+
+  if (!$ctrl_allowed) {
+    $data = "state " . getState($module);
+  } else {
+    $data = 'state <input id="switchBtn' . $module . '"  type="button"';
+    $data .= ' value=' . getState($module);
+
+    $t = 'toggleState(' . $module . ')';
+    $data .= ' onclick="toggleState(' . $module . ');" />';
+  }
+  $data .= " temp " . getTemp($module);
+  break;
+
+case 'toggleState':
+  if ($ctrl_allowed)
+    $data = toggleState($module);
+  else
+    $data = 'not allowed';
+  break;
 
 case 'measure':
     $begin = $_POST['begin'];
     $end = $_POST['end'];
-    $module = $_POST['module'];
 
     $b = new DateTime($begin);
     $e = new DateTime($end);
+
+    $mysql = mysql_connect('localhost', DB_USERNAME, DB_PASSWORD)
+       or die('could not connect: ' . mysql_error());
+
+    mysql_select_db(DB_NAME) or die('Could not select database');
 
     $query = "SELECT * FROM " . DB_TABLE .
         " WHERE date >= '" . $begin ."' AND date <= '".$end."' AND ".
@@ -109,7 +88,7 @@ case 'measure':
 
     } else {
 
-        /* report mean per mount */
+        /* report mean per month */
         $period = new DatePeriod($b, $d_mount, $e);
         foreach($period as $dt)
             $data[$dt->format("%Y-%M")] = array(0, 0, 0);
@@ -121,10 +100,11 @@ case 'measure':
     }
 
     mysql_free_result($res);
+    mysql_close($mysql);
     break;
+default:
+    $data = 'unknown request';
 }
-
-mysql_close($mysql);
 
 echo json_encode($data);
 
