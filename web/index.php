@@ -5,7 +5,7 @@
   <script src="https://www.gstatic.com/charts/loader.js"></script>
   <script src="chart.js"></script>
 </head>
-
+<meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1">
 <body>
 
 <?php
@@ -18,27 +18,36 @@
     }
   }
   if ($_COOKIE['user'])
-    echo "<div>Welcome " . $_COOKIE['user'] . "</div>";
+    echo "<div style='font-size:3vw' align='center'>Welcome " .
+       $_COOKIE['user'] . "</div>";
 ?>
 
-<div>
+<div style="font-size:3vw" align="center">
   <input type="button" value="<<" onclick="prev();" />
   <span id="date"></span>
   <input type="button" value=">>" onclick="next();" />
 </div>
+<br>
 
-<h1>Shiatsu</h1>
-<div id="switchStatus1"></div>
+<div style="font-size:3vw" align="center">
+     <b>Shiatsu</b>
+     <label id="status1"</label>
+</div>
 <div id="chart1"></div>
 
-<hr>
-<h1>Entree</h1>
-<div id="switchStatus2"></div>
+<br>
+<div style="font-size:3vw" align="center">
+     <b>Entree</b>
+     <label id="status2"></label>
+</div>
 <div id="chart2"></div>
 
-<hr>
-<h1>Lora</h1>
-<div id="chart_lora"></div>
+<br>
+<div style="font-size:3vw" align="center">
+     <b>Lora</b>
+     <label id="status3"</label>
+</div>
+<div id="chart3"></div>
 
 <?php
   if ($_COOKIE['user'])

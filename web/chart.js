@@ -3,8 +3,9 @@ var date;
 
 const AJAX_FMT = "JSON";
 
-const HEATER_BIG = 1;
-const HEATER_SMALL = 2;
+const ID_HEATER_BIG = 1;
+const ID_HEATER_SMALL = 2;
+const ID_LORA = 3;
 
 google.charts.load('current', {'packages':['corechart']});
 
@@ -12,32 +13,21 @@ Date.prototype.format = function() {
     return [this.getFullYear(), '-', this.getMonth()+1, '-', this.getDate()].join('');
 };
 
-function drawChart(module)
+function drawCharts()
 {
     var next = new Date;
     next.setDate(date.getDate() + 1);
-
-    console.log("drawchart");
+    //console.log("drawchart");
 
     var cell = document.getElementById('date');
     cell.innerHTML = date.format();
 
-    if (module == null) {
-	__drawChart('chart', HEATER_BIG, null,
-		    date.format(),
-		    next.format(),
-		    null);
-	__drawChart('chart', HEATER_SMALL, null,
-		    date.format(),
-		    next.format(),
-		    null);
-	return;
-    }
-
-    __drawChart('chart', module, null,
-		date.format(),
-		next.format(),
-		null);
+    __drawChart('chart', ID_HEATER_BIG, null,
+		date.format(), next.format(), null);
+    __drawChart('chart', ID_HEATER_SMALL, null,
+		date.format(), next.format(), null);
+    __drawChart_lora('chart', ID_LORA, null,
+		     date.format(), next.format(), null);
 }
 
 function __drawChart(elem, module, title, begin, end, hTitle)
@@ -68,7 +58,7 @@ function __drawChart(elem, module, title, begin, end, hTitle)
 		vAxes: {
 		    0: { viewWindowMode:'explicit',
 			 viewWindow: {
-			     max:5,
+			     max:0,
 			     min:30
 			 }
 		       },
@@ -92,7 +82,7 @@ function __drawChart(elem, module, title, begin, end, hTitle)
 	    });
 	    //var data = new google.visualization.arrayToDataTable(response);
 	    var cell = document.getElementById(elem + module);
-	    console.log(cell);
+	    //console.log(cell);
 	    var chart = new google.visualization.LineChart(cell);
             chart.draw(data, options);
 	},
@@ -116,7 +106,7 @@ function setElem(elem, module)
 	data: req,
 	dataType: "json",
 	success: function(response) {
-	    console.log(response);
+	    //console.log(response);
 	    var name = elem + module
 	    var cell = document.getElementById(name);
 	    cell.innerHTML = response;
@@ -125,20 +115,6 @@ function setElem(elem, module)
 	    alert("ajax module failed");
 	}
     })
-}
-
-function drawChart_lora()
-{
-    var next = new Date;
-    next.setDate(date.getDate() + 1);
-
-    var cell = document.getElementById('date');
-    cell.innerHTML = date.format();
-
-    __drawChart_lora('chart_lora', 100, null,
-		date.format(),
-		next.format(),
-		null);
 }
 
 function __drawChart_lora(elem, module, title, begin, end, hTitle)
@@ -169,14 +145,14 @@ function __drawChart_lora(elem, module, title, begin, end, hTitle)
 		vAxes: {
 		    0: { viewWindowMode:'explicit',
 			 viewWindow: {
-			     max:5,
-			     min:45
+			     max:0,
+			     min:30
 			 }
 		       },
 		    1: { viewWindowMode:'explicit',
 			 viewWindow: {
 			     max:0,
-			     min:5
+			     min:6
 			 },
 			 //gridlines: { count: 0 },
 		       }
@@ -191,8 +167,8 @@ function __drawChart_lora(elem, module, title, begin, end, hTitle)
 		data.addRow([new Date(e[0]), e[1], e[2]]);
 	    });
 	    //var data = new google.visualization.arrayToDataTable(response);
-	    var cell = document.getElementById(elem);
-	    console.log(cell);
+	    var cell = document.getElementById(elem + module);
+	    //console.log(cell);
 	    var chart = new google.visualization.LineChart(cell);
 	    chart.draw(data, options);
 	},
@@ -214,7 +190,7 @@ function toggleState(module)
 	data: req,
 	dataType: "json",
 	success: function(response) {
-	    console.log(response);
+	    //console.log(response);
 	    var cell = document.getElementById('switchBtn' + module);
 	    cell.value = response;
 	},
@@ -227,17 +203,13 @@ function toggleState(module)
 function prev()
 {
     date.setDate(date.getDate() - 1);
-    drawChart(HEATER_BIG);
-    drawChart(HEATER_SMALL);
-    drawChart_lora();
+    drawCharts();
 }
 
 function next()
 {
     date.setDate(date.getDate() + 1);
-    drawChart(HEATER_BIG);
-    drawChart(HEATER_SMALL);
-    drawChart_lora();
+    drawCharts();
 }
 
 $(document).ready(function()
@@ -245,19 +217,17 @@ $(document).ready(function()
     date = new Date();
     width = $("#chart").css("width");
 
-    setElem('switchStatus', HEATER_BIG);
-    setElem('switchStatus', HEATER_SMALL);
+    setElem('status', ID_HEATER_BIG);
+    setElem('status', ID_HEATER_SMALL);
+    setElem('status', ID_LORA);
 
-    google.charts.setOnLoadCallback(drawChart);
-    google.charts.setOnLoadCallback(drawChart_lora);
+    google.charts.setOnLoadCallback(drawCharts);
 
     $(window).on('resize', function() {
-	console.log("resize");
-	var w = $("#chart").css("width");
+	var w = $("#chart1").css("width");
 	if (w != width) {
-	    _width = w;
-	    drawChart();
-	    drawChart_lora();
+	    width = w;
+	    drawCharts();
 	}
     });
 })

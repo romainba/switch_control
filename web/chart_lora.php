@@ -3,57 +3,18 @@
 require_once('control_mqtt.php');
 
 require_once('db_param.php');
-const DB_TABLE = "measures";
+const DB_TABLE = "lora";
 
 $ctrl_allowed = isset($_COOKIE['user']);
 
-const ID_LORA = 3;
-
-if ($argv) {
-   for ($i = 1; $i < sizeof($argv); $i++) {
-     $g = explode('=', $argv[$i]);
-     $_POST[$g[0]] = $g[1];
-   }
-}
-
 $type = $_POST['type'];
-$module = $_POST['module'];
 
-/* request type */
 switch ($type) {
-
-case 'status':
-
-  if ($module >= ID_LORA) {
-    /* lora */
-    $v = getState($module);
-    list($id, $temp, $vbat, $tx, $rssi) = split(':', $v);
-    $data = " " . $temp . "&#8451 " . $vbat . "V ";
-  } else {
-    /* heater */
-    if (!$ctrl_allowed) {
-       $data = " " . getState($module);
-    } else {
-      $data = ' <input id="switchBtn' . $module . '"  type="button"';
-      $data .= ' value=' . getState($module);
-
-      $t = 'toggleState(' . $module . ')';
-      $data .= ' onclick="toggleState(' . $module . ');" />';
-    }
-    $data .= " " . getTemp($module) . "&#8451;";
-  }
-  break;
-
-case 'toggleState':
-  if ($ctrl_allowed)
-    $data = toggleState($module);
-  else
-    $data = 'not allowed';
-  break;
 
 case 'measure':
     $begin = $_POST['begin'];
     $end = $_POST['end'];
+    $module = $_POST['module'] + 97; // convert 3 to 100
 
     $b = new DateTime($begin);
     $e = new DateTime($end);
@@ -71,7 +32,7 @@ case 'measure':
     $res = mysql_query($query) or die('query failed: ' . mysql_error());
 
     $data = array();
-    //$data[] = array('Date', 'Temp', 'Humidity', 'Active');
+    //$data[] = array('Date', 'Temp', 'vbat', 'pwr');
     $d_day = DateInterval::createFromDateString('1 day');
     $d_mount = DateInterval::createFromDateString('1 mount');
 
@@ -82,7 +43,7 @@ case 'measure':
             $d = new DateTime($v['date']);
             $data[] = array(
                 $d->format("Y/m/d H:i"), intval($v['temp'])/1000.,
-                intval($v['humidity'])/100., intval($v['state']));
+                intval($v['vbat'])/1000., intval($v['pwr']));
         }
 
     } else if  (($b->diff($e)) <= $d_mount) {
@@ -94,7 +55,7 @@ case 'measure':
 
     } else {
 
-        /* report mean per month */
+        /* report mean per mount */
         $period = new DatePeriod($b, $d_mount, $e);
         foreach($period as $dt)
             $data[$dt->format("%Y-%M")] = array(0, 0, 0);
@@ -102,14 +63,12 @@ case 'measure':
         $report = array();
         foreach($data as $key => $u)
             $report[] = array($key, intval($u[0])/1000.,
-	    	      intval($u[1])/100., $u[2]);
+	    	      intval($u[1])/1000., intval($u[2]));
     }
 
     mysql_free_result($res);
     mysql_close($mysql);
     break;
-default:
-    $data = 'unknown request';
 }
 
 echo json_encode($data);
